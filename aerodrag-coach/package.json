@@ -1,0 +1,58 @@
+{
+  "name": "aerodrag-coach",
+  "version": "1.0.0",
+  "description": "AeroDrag Coach Dashboard — App desktop",
+  "main": "main.js",
+  "scripts": {
+    "start":         "electron .",
+    "build:win":     "electron-builder --win --x64",
+    "build:mac":     "electron-builder --mac",
+    "build:linux":   "electron-builder --linux"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron":         "^28.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId":       "it.aerodrag.coach",
+    "productName": "AeroDrag Coach",
+    "copyright":   "AeroDrag Pro",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/**",
+      "!node_modules"
+    ],
+    "extraResources": [
+      {
+        "from": "../pc-receiver",
+        "to":   "pc-receiver",
+        "filter": ["**/*", "!node_modules"]
+      }
+    ],
+    "win": {
+      "icon":   "assets/icon.ico",
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick":           true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName":       "AeroDrag Coach"
+    },
+    "mac": {
+      "icon":   "assets/icon.icns",
+      "target": [{ "target": "dmg" }],
+      "category": "public.app-category.sports"
+    },
+    "linux": {
+      "icon":   "assets/icon.png",
+      "target": [{ "target": "AppImage" }],
+      "category": "Sports"
+    }
+  }
+}

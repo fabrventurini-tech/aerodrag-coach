@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:transparent;font-family:'SF Mono','Fira Code',monospace;
+            -webkit-user-select:none; -webkit-app-region:drag}
+  body{display:flex;align-items:center;justify-content:center}
+
+  .card{background:#0f1420;border:1px solid rgba(0,200,150,.2);border-radius:18px;
+        padding:40px 48px;text-align:center;width:420px;
+        box-shadow:0 24px 80px rgba(0,0,0,.7)}
+
+  .logo{font-size:13px;font-weight:700;color:#00c896;letter-spacing:.12em;
+        text-transform:uppercase;margin-bottom:6px}
+  .title{font-size:20px;font-weight:700;color:#dde8f5;margin-bottom:4px}
+  .sub{font-size:12px;color:#4a5a7a;margin-bottom:32px}
+
+  .spinner{width:44px;height:44px;border:3px solid rgba(0,200,150,.15);
+           border-top-color:#00c896;border-radius:50%;
+           animation:spin 1s linear infinite;margin:0 auto 20px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .status{font-size:12px;color:#7a90b8;margin-bottom:8px}
+  .hint{font-size:11px;color:#2a3a5a;line-height:1.7}
+
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;
+       background:#00c896;margin:0 2px;animation:pulse 1.4s ease-in-out infinite}
+  .dot:nth-child(2){animation-delay:.2s}
+  .dot:nth-child(3){animation-delay:.4s}
+  @keyframes pulse{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
+  .found{display:none;color:#00c896;font-size:14px;font-weight:700;margin-top:8px}
+  .found.show{display:block}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">◉ AeroDrag</div>
+  <div class="title">Coach Dashboard</div>
+  <div class="sub">Sistema di analisi aerodinamica</div>
+
+  <div class="spinner" id="spinner"></div>
+
+  <div class="status" id="status">
+    Connessione al Pi in corso
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+  </div>
+
+  <div class="hint" id="hint">
+    Assicurati che il cavo USB sia collegato<br>
+    al porto USB del Raspberry Pi (non PWR)
+  </div>
+
+  <div class="found" id="found">✓ Pi trovato — apertura dashboard...</div>
+
+  <button onclick="window.aerodrag.openSettings()"
+    style="margin-top:8px;padding:6px 16px;border-radius:8px;
+           border:1px solid rgba(100,140,200,.2);background:transparent;
+           color:#4a5a7a;cursor:pointer;font-family:inherit;font-size:11px">
+    ⚙ Impostazioni
+  </button>
+</div>
+
+<script>
+  // Fix 15: use window.aerodrag exposed by preload.js — require() not available
+  // with nodeIntegration:false + contextIsolation:true
+  window.aerodrag.onPiFound(() => {
+    document.getElementById('spinner').style.borderTopColor = '#00c896';
+    document.getElementById('spinner').style.animationDuration = '.3s';
+    document.getElementById('status').style.display = 'none';
+    document.getElementById('hint').style.display = 'none';
+    document.getElementById('found').classList.add('show');
+  });
+
+  window.aerodrag.onProbeFailed(() => {
+    document.getElementById('hint').textContent =
+      'Verifica che il Pi sia acceso e il cavo USB collegato.\nRiprovo ogni 2.5 secondi...';
+  });
+</script>
+</body>
+</html>
