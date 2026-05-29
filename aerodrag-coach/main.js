@@ -12,7 +12,9 @@ const fs   = require('fs');
 const os   = require('os');
 
 const PI_URL      = 'http://192.168.7.1:8080/dashboard';
-const RECEIVER_JS = path.join(__dirname, '..', 'pc-receiver', 'pc-receiver.js');
+const RECEIVER_JS = app.isPackaged
+  ? path.join(process.resourcesPath, 'pc-receiver', 'pc-receiver.js')
+  : path.join(__dirname, '..', 'pc-receiver', 'pc-receiver.js');
 const CONFIG_FILE = path.join(app.getPath('userData'), 'aerodrag-config.json');
 
 // ─── Configurazione persistente ───────────────────────────────────────────────
