@@ -237,28 +237,14 @@ function handleEscQuit() {
           </div>
         </div>\`;
       document.body.appendChild(ov);
-      document.getElementById('_confirm_quit').onclick = () => { window._aerodragQuitConfirmed = true; ov.remove(); };
-      document.getElementById('_cancel_quit').onclick  = () => ov.remove();
-      ov.onclick = e => { if(e.target===ov) ov.remove(); };
-      const onKey = e => { if(e.key==='Escape') { ov.remove(); document.removeEventListener('keydown',onKey); } };
+      document.getElementById('_confirm_quit').addEventListener('click', () => { ov.remove(); window.aerodrag.quit(); });
+      document.getElementById('_cancel_quit').addEventListener('click',  () => ov.remove());
+      ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+      const onKey = e => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', onKey); } };
       document.addEventListener('keydown', onKey);
       return true;
     })()
-  `).then(shown => {
-    if (!shown) return;
-    let checks = 0;
-    const poll = setInterval(() => {
-      if (++checks > 60) { clearInterval(poll); return; }
-      win.webContents.executeJavaScript('window._aerodragQuitConfirmed||false').then(confirmed => {
-        if (confirmed) {
-          clearInterval(poll);
-          win.webContents.executeJavaScript('window._aerodragQuitConfirmed=false');
-          app.isQuitting = true;
-          app.quit();
-        }
-      }).catch(() => clearInterval(poll));
-    }, 200);
-  }).catch(() => app.quit());
+  `).catch(() => app.quit());
 }
 
 // ─── IPC handlers ─────────────────────────────────────────────────────────────
