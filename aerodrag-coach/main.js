@@ -11,7 +11,8 @@ const http = require('http');
 const fs   = require('fs');
 const os   = require('os');
 
-const PI_URL      = 'http://192.168.7.1:8080/dashboard';
+const PI_HOST     = '192.168.7.1:8080';
+const PI_WS_URL   = `ws://${PI_HOST}/`;
 const RECEIVER_JS = app.isPackaged
   ? path.join(process.resourcesPath, 'pc-receiver', 'pc-receiver.js')
   : path.join(__dirname, '..', 'pc-receiver', 'pc-receiver.js');
@@ -100,7 +101,7 @@ function restartReceiver() {
 // ─── Probe Pi ─────────────────────────────────────────────────────────────────
 function probePi(callback) {
   const req = http.request({
-    hostname: '192.168.7.1', port: 8080, path: '/status',
+    hostname: PI_HOST.split(':')[0], port: parseInt(PI_HOST.split(':')[1]), path: '/status',
     method: 'GET', timeout: 2000,
   }, res => { piAvailable = (res.statusCode === 200); callback(piAvailable); });
   req.on('error', () => { piAvailable = false; callback(false); });
@@ -140,7 +141,7 @@ function createMainWindow() {
     icon: path.join(__dirname, 'assets', 'icon.png'),
   });
 
-  mainWindow.loadURL(PI_URL);
+  mainWindow.loadFile(path.join(__dirname, 'assets', 'dashboard.html'));
 
   mainWindow.once('ready-to-show', () => {
     if (loadingWin) { loadingWin.close(); loadingWin = null; }
@@ -318,6 +319,7 @@ ipcMain.on('open-sessions-folder', () => {
 
 // Versione app — funziona sia in dev (npm start) sia packaged (binario)
 ipcMain.handle('get-version', () => app.getVersion());
+ipcMain.handle('get-pi-ws-url', () => PI_WS_URL);
 
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 app.whenReady().then(() => {

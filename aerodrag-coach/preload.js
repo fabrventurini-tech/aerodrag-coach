@@ -20,4 +20,7 @@ contextBridge.exposeInMainWorld('aerodrag', {
   // Versione: legge da main.js via IPC (app.getVersion()) — funziona anche
   // nelle build packaged dove process.env.npm_package_version è undefined
   version: () => ipcRenderer.invoke('get-version'),
+
+  // URL WebSocket Pi — usato dalla dashboard caricata come file locale
+  piWsUrl: () => ipcRenderer.invoke('get-pi-ws-url'),
 });
