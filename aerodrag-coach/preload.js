@@ -6,7 +6,8 @@ contextBridge.exposeInMainWorld('aerodrag', {
   onProbeFailed: (cb) => ipcRenderer.on('probe-failed', () => cb()),
 
   // Uscita
-  quit: () => ipcRenderer.send('quit-confirmed'),
+  quit:            () => ipcRenderer.send('quit-confirmed'),
+  closeQuitWindow: () => ipcRenderer.send('close-quit-window'),
 
   // Impostazioni
   openSettings:      ()      => ipcRenderer.send('open-settings'),

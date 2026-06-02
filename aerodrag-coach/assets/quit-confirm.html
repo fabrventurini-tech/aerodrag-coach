@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%; background: transparent;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    -webkit-user-select: none;
+  }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(7,9,15,0.92);
+  }
+  .card {
+    background: #0f1420;
+    border: 1px solid rgba(232,58,80,.4);
+    border-radius: 14px;
+    padding: 32px 40px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    max-width: 340px;
+    width: 100%;
+  }
+  .icon { font-size: 28px; margin-bottom: 12px; }
+  .title { font-size: 16px; font-weight: 700; color: #dde8f5; margin-bottom: 8px; }
+  .sub { font-size: 12px; color: #4a5a7a; margin-bottom: 24px; }
+  .btns { display: flex; gap: 12px; justify-content: center; }
+  button {
+    padding: 10px 24px; border-radius: 8px; cursor: pointer;
+    font-family: inherit; font-size: 13px; transition: opacity .15s;
+  }
+  button:hover { opacity: .8; }
+  #cancel {
+    border: 1px solid rgba(100,140,200,.3);
+    background: transparent; color: #7a90b8;
+  }
+  #confirm {
+    border: 1px solid rgba(232,58,80,.5);
+    background: rgba(232,58,80,.15); color: #f24560; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">⬛</div>
+  <div class="title">Uscire da AeroDrag Coach?</div>
+  <div class="sub">I dati della sessione corrente sono al sicuro sul Pi e sul PC.</div>
+  <div class="btns">
+    <button id="cancel">Annulla (ESC)</button>
+    <button id="confirm">Esci</button>
+  </div>
+</div>
+<script>
+  document.getElementById('confirm').addEventListener('click', () => {
+    window.aerodrag.quit();
+  });
+  document.getElementById('cancel').addEventListener('click', () => {
+    window.aerodrag.closeQuitWindow();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') window.aerodrag.closeQuitWindow();
+  });
+</script>
+</body>
+</html>

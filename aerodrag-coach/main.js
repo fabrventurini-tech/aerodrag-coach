@@ -47,6 +47,7 @@ let config = loadConfig();
 let mainWindow   = null;
 let loadingWin   = null;
 let settingsWin  = null;
+let quitWin      = null;
 let receiverProc = null;
 let piAvailable  = false;
 let probeTimer   = null;
@@ -201,54 +202,28 @@ function scheduleProbe() {
   }, 2500);
 }
 
-// ─── ESC: conferma uscita ─────────────────────────────────────────────────────
+// ─── ESC: conferma uscita (finestra dedicata) ─────────────────────────────────
 function handleEscQuit() {
-  const win = mainWindow || loadingWin;
-  if (!win) { app.quit(); return; }
+  if (quitWin) { quitWin.focus(); return; }
 
-  win.webContents.executeJavaScript(`
-    (function() {
-      const old = document.getElementById('_aerodrag_quit_overlay');
-      if (old) { old.remove(); return false; }
-      const ov = document.createElement('div');
-      ov.id = '_aerodrag_quit_overlay';
-      ov.style.cssText = \`position:fixed;inset:0;background:rgba(7,9,15,.85);
-        display:flex;align-items:center;justify-content:center;
-        z-index:99999;backdrop-filter:blur(8px);\`;
-      ov.innerHTML = \`
-        <div style="background:#0f1420;border:1px solid rgba(232,58,80,.4);
-                    border-radius:14px;padding:32px 40px;text-align:center;
-                    box-shadow:0 20px 60px rgba(0,0,0,.6);max-width:360px">
-          <div style="font-size:28px;margin-bottom:12px">⬛</div>
-          <div style="font-size:16px;font-weight:700;color:#dde8f5;margin-bottom:8px">
-            Uscire da AeroDrag Coach?</div>
-          <div style="font-size:12px;color:#4a5a7a;margin-bottom:24px">
-            I dati della sessione corrente sono al sicuro sul Pi e sul PC.</div>
-          <div style="display:flex;gap:12px;justify-content:center">
-            <button id="_cancel_quit"
-              style="padding:10px 24px;border-radius:8px;border:1px solid rgba(100,140,200,.3);
-                     background:transparent;color:#7a90b8;cursor:pointer;font-family:inherit;font-size:13px">
-              Annulla (ESC)</button>
-            <button id="_confirm_quit"
-              style="padding:10px 24px;border-radius:8px;border:1px solid rgba(232,58,80,.5);
-                     background:rgba(232,58,80,.15);color:#f24560;cursor:pointer;
-                     font-family:inherit;font-size:13px;font-weight:600">
-              Esci</button>
-          </div>
-        </div>\`;
-      document.body.appendChild(ov);
-      document.getElementById('_confirm_quit').addEventListener('click', () => { ov.remove(); window.aerodrag.quit(); });
-      document.getElementById('_cancel_quit').addEventListener('click',  () => ov.remove());
-      ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
-      const onKey = e => { if (e.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', onKey); } };
-      document.addEventListener('keydown', onKey);
-      return true;
-    })()
-  `).catch(() => app.quit());
+  quitWin = new BrowserWindow({
+    width: 400, height: 240,
+    frame: false, transparent: true,
+    resizable: false, alwaysOnTop: true,
+    webPreferences: {
+      nodeIntegration: false, contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+    parent: mainWindow || undefined,
+  });
+
+  quitWin.loadFile(path.join(__dirname, 'assets', 'quit-confirm.html'));
+  quitWin.on('closed', () => { quitWin = null; });
 }
 
 // ─── IPC handlers ─────────────────────────────────────────────────────────────
 ipcMain.on('quit-confirmed', () => { app.isQuitting = true; app.quit(); });
+ipcMain.on('close-quit-window', () => { if (quitWin) { quitWin.close(); quitWin = null; } });
 
 // Apre la finestra impostazioni
 ipcMain.on('open-settings', () => createSettingsWindow());
