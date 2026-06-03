@@ -11,8 +11,8 @@ const http = require('http');
 const fs   = require('fs');
 const os   = require('os');
 
-const PI_HOST     = '192.168.7.1:8080';
-const PI_WS_URL   = `ws://${PI_HOST}/`;
+const PI_HOST     = '192.168.8.1:8080';
+const PI_WS_URL   = `ws://${PI_HOST}/coach`;
 const RECEIVER_JS = app.isPackaged
   ? path.join(process.resourcesPath, 'pc-receiver', 'pc-receiver.js')
   : path.join(__dirname, '..', 'pc-receiver', 'pc-receiver.js');
