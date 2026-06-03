@@ -70,7 +70,7 @@ body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',mo
 
 /* CENTER */
 .center{display:flex;flex-direction:column;overflow-y:auto}
-.metric-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;
+.metric-strip{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;
               padding:8px 10px;background:var(--s1);border-bottom:1px solid var(--border)}
 .mcard{background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:8px 10px}
 .mc-lbl{font-size:9px;color:var(--muted);letter-spacing:.07em;text-transform:uppercase}
@@ -199,6 +199,8 @@ body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',mo
         onclick="sendCmd('lap')" title="Lap (Spazio)">◎ LAP</button>
       <button class="ctrl-btn" style="color:var(--red);border-color:rgba(232,58,80,.4)"
         onclick="sendCmd('stop')" title="Ferma sessione (X)">⬛ STOP</button>
+      <button class="ctrl-btn" style="color:var(--purple);border-color:rgba(139,92,246,.4)"
+        onclick="sendOta()" title="OTA firmware">⬆ OTA</button>
     </div>
     <span style="margin-left:auto;font-size:10px;color:var(--dim)" id="clock"></span>
     <span class="pill pm" id="p-conn">Connessione...</span>
@@ -287,6 +289,16 @@ body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',mo
           <div class="mc-live" style="color:var(--blue)" id="m-wind">—</div>
           <div class="mc-sub"><span style="color:var(--muted)" id="m-bat">—%</span><span style="color:var(--dim)" id="m-dist">—km</span></div>
         </div>
+        <div class="mcard">
+          <div class="mc-lbl">Pitch · Roll</div>
+          <div class="mc-live" style="color:var(--purple)" id="m-pitch">—</div>
+          <div class="mc-sub"><span style="color:var(--dim)" id="m-roll">— °</span></div>
+        </div>
+        <div class="mcard">
+          <div class="mc-lbl">ρ aria · Temp</div>
+          <div class="mc-live" style="color:var(--blue)" id="m-rho">—</div>
+          <div class="mc-sub"><span style="color:var(--dim)" id="m-temp">—°C</span><span style="color:var(--dim)" id="m-hum"> —%</span></div>
+        </div>
       </div>
 
       <!-- TAB CONTENTS -->
@@ -361,6 +373,10 @@ body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',mo
             <div style="height:110px"><canvas id="ovHrSpd"></canvas></div>
           </div>
         </div>
+        <div class="cc">
+          <div class="cc-hdr"><span class="cc-title">Pitch · Roll — inclinazione sessione</span></div>
+          <div style="height:110px"><canvas id="ovPitch"></canvas></div>
+        </div>
       </div>
 
       <div class="charts" id="tab-radar" style="display:none">
@@ -394,6 +410,8 @@ body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',mo
         <div class="srow"><span class="sk">FC avg</span><span class="sv" id="r-avg-hr">—</span></div>
         <div class="srow"><span class="sk">Distanza</span><span class="sv" id="r-dist">—</span></div>
         <div class="srow"><span class="sk">Vento avg</span><span class="sv" id="r-wind">—</span></div>
+        <div class="srow"><span class="sk">ρ avg</span><span class="sv" id="r-rho">—</span></div>
+        <div class="srow"><span class="sk">Pitch avg</span><span class="sv" id="r-pitch">—</span></div>
         <div class="srow"><span class="sk">Frame</span><span class="sv" style="color:var(--muted)" id="r-frames">0</span></div>
       </div>
       <div class="rs">
@@ -419,7 +437,7 @@ const LAP_COLORS = ['#00c896','#f0a020','#3a8cf0','#8b5cf6','#f06090','#22c55e',
 const N = 180;
 
 // ── State ─────────────────────────────────────────────────────────────────────
-const sess = { n:0, sumCdA:0, sumPwr:0, sumSpd:0, sumHr:0, sumAero:0, sumWind:0,
+const sess = { n:0, sumCdA:0, sumPwr:0, sumSpd:0, sumHr:0, sumAero:0, sumWind:0, sumPitch:0, sumRho:0,
                pkCdA:0, btCdA:9, pkPwr:0, pkHr:0, pkAero:0, pkSpd:0, mnSpd:999,
                avSpd:0, avPwr:0, avHr:0, avAero:0, dist:0, frames:0 };
 
@@ -436,7 +454,7 @@ const lapBounds = [];
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 let ws, pingTs, reconnTimer;
-const _piHost = (location.host && location.protocol !== 'file:') ? location.host : '192.168.7.1:8080';
+const _piHost = (location.host && location.protocol !== 'file:') ? location.host : '192.168.8.1:8080';
 document.getElementById('r-addr').textContent = _piHost;
 
 async function connect() {
@@ -444,7 +462,7 @@ async function connect() {
   if (window.aerodrag?.piWsUrl) {
     wsUrl = await window.aerodrag.piWsUrl();
   } else {
-    wsUrl = `ws://${_piHost}/`;
+    wsUrl = `ws://${_piHost}/coach`;
   }
   ws = new WebSocket(wsUrl);
   ws.onopen  = () => { setConn('connected'); clearTimeout(reconnTimer); };
@@ -511,13 +529,16 @@ function ingest(f, live) {
   const paero = Math.round((f.pwr||0)*(f.pctAero||76)/100);
   lp.sumAero+=paero; lp.sumWind+=(f.wind||0); lp.sumCad+=(f.cad||0);
   lp.pts.push({s:(f.t-lp.startTs)/1000, CdA:f.CdA, pwr:f.pwr||0, hr:f.hr||0,
-               spd:f.spd||0, wind:f.wind||0, aero:paero, cad:f.cad||0});
+               spd:f.spd||0, wind:f.wind||0, aero:paero, cad:f.cad||0,
+               pitch:f.pitch||0, roll:f.roll||0, rho:f.rho||1.2});
   curLap = lap;
+  if (f.lapEvent && live) toast(`Auto-LAP — Lap ${lap}`, '#f0a020');
 
   // Session
   sess.n++; sess.frames++;
   sess.sumCdA+=f.CdA; sess.sumPwr+=(f.pwr||0); sess.sumSpd+=(f.spd||0);
   sess.sumHr+=(f.hr||0); sess.sumAero+=paero; sess.sumWind+=(f.wind||0);
+  sess.sumPitch+=(f.pitch||0); sess.sumRho+=(f.rho||1.2);
   if (f.CdA>sess.pkCdA) sess.pkCdA=f.CdA;
   if (f.CdA<sess.btCdA) sess.btCdA=f.CdA;
   if ((f.pwr||0)>sess.pkPwr) sess.pkPwr=f.pwr;
@@ -579,6 +600,11 @@ function updateUI(f, paero, lap) {
   $('#m-wind').textContent = (f.wind||0).toFixed(1)+' m/s';
   $('#m-bat').textContent  = (f.battery||0)+'%';
   $('#m-dist').textContent = (sess.dist/1000).toFixed(1)+'km';
+  $('#m-pitch').textContent = (f.pitch||0).toFixed(1)+'°';
+  $('#m-roll').textContent  = (f.roll||0).toFixed(1)+'°';
+  $('#m-rho').textContent   = (f.rho||0).toFixed(4)+' kg/m³';
+  $('#m-temp').textContent  = (f.temp||0).toFixed(1)+'°C';
+  $('#m-hum').textContent   = ' '+(f.humidity||0).toFixed(0)+'%';
 
   $('#pk-cda').textContent = sess.pkCdA.toFixed(3);
   $('#av-cda').textContent = av(sess.n);
@@ -601,6 +627,8 @@ function updateUI(f, paero, lap) {
   $('#r-avg-hr').textContent   = sess.avHr+' bpm';
   $('#r-dist').textContent     = (sess.dist/1000).toFixed(2)+' km';
   $('#r-wind').textContent     = (sess.sumWind/sess.n).toFixed(1)+' m/s';
+  if(document.getElementById('r-rho')) $('#r-rho').textContent = (sess.sumRho/sess.n).toFixed(4)+' kg/m³';
+  if(document.getElementById('r-pitch')) $('#r-pitch').textContent = (sess.sumPitch/sess.n).toFixed(1)+'°';
   $('#r-frames').textContent   = sess.frames;
 
   // Power breakdown
@@ -749,7 +777,7 @@ function updateCompare() {
 }
 
 // Overlay charts
-let ovCdaWC=null, ovAeroC=null, ovHrSC=null;
+let ovCdaWC=null, ovAeroC=null, ovHrSC=null, ovPitchC=null;
 function updateOverlay() {
   const allPts = [];
   Object.keys(laps).map(Number).sort((a,b)=>a-b)
@@ -776,6 +804,10 @@ function updateOverlay() {
     data:{labels:labs,datasets:[makeDS('hr','#e83a50',5),makeDS('spd','#3a8cf0')]},
     options:sopts(0,0)});
   else { ovHrSC.data.labels=labs; ovHrSC.data.datasets=[makeDS('hr','#e83a50',5),makeDS('spd','#3a8cf0')]; ovHrSC.update('none'); }
+  if (!ovPitchC) ovPitchC = new Chart($('ovPitch'), {type:'line',
+    data:{labels:labs, datasets:[makeDS('pitch','#8b5cf6'), makeDS('roll','#f06090')]},
+    options:sopts(-30,30)});
+  else { ovPitchC.data.labels=labs; ovPitchC.data.datasets=[makeDS('pitch','#8b5cf6'),makeDS('roll','#f06090')]; ovPitchC.update('none'); }
 }
 
 // Radar
@@ -1018,6 +1050,7 @@ function createAthletePanel(deviceId, name, color, safeId) {
       <span>km/h: <b id="ac_spd_${safeId}">—</b></span>
       <span>bpm: <b id="ac_hr_${safeId}" style="color:#e83a50">—</b></span>
       <span>rpm: <b id="ac_cad_${safeId}">—</b></span>
+      <span>🔋: <b id="ac_bat_${safeId}">—</b></span>
       <span style="margin-left:auto">LAP <b id="ac_lap_${safeId}">1</b></span>
     </div>
     <div class="athlete-chart">
@@ -1087,6 +1120,7 @@ function updateAthletePanel(frame) {
   set('ac_spd_'+safeId, state.spd);
   set('ac_hr_'+safeId,  state.hr);
   set('ac_cad_'+safeId, state.cad);
+  set('ac_bat_'+safeId, (frame.battery||0)+'%');
   set('ac_lap_'+safeId, state.lap);
 
   // Update mini-chart
@@ -1117,6 +1151,14 @@ function sendCmd(action, targetDeviceId) {
   if (action==='lap') { const b=$('btn-lap'); b.style.transform='scale(1.15)'; setTimeout(()=>b.style.transform='',300); }
 }
 
+function sendOta() {
+  const url = prompt('URL firmware .bin per OTA:');
+  if (!url) return;
+  if (ws?.readyState !== 1) { toast('Nessuna connessione al Pi', '#e83a50'); return; }
+  ws.send(JSON.stringify({ type:'cmd', action:'ota', url, deviceId: focusDevice || null }));
+  toast('OTA avviato → ' + url.split('/').pop(), '#8b5cf6');
+}
+
 // ── Storico sessioni ───────────────────────────────────────────────────────
 let histOpen = false;
 const ghostLaps = {};   // { 'sessId_lapN': { color, pts, meta } }
@@ -1136,9 +1178,9 @@ async function loadHistSessions() {
   try {
     // Prova prima il receiver locale del PC (porta 8081, salva sul disco del PC)
     // Fallback al Pi (porta 8080, salva sulla microSD)
-    let sessUrl = 'http://192.168.7.2:8081/sessions';
+    let sessUrl = 'http://192.168.8.2:8081/sessions';
     try { await fetch(sessUrl, { method:'HEAD', signal: AbortSignal.timeout(1000) });
-          sessSourceBase = 'http://192.168.7.2:8081/sessions'; }
+          sessSourceBase = 'http://192.168.8.2:8081/sessions'; }
     catch { sessUrl = '/api/sessions'; sessSourceBase = '/api/sessions'; }
     const res = await fetch(sessUrl);
     const sessions = await res.json();
