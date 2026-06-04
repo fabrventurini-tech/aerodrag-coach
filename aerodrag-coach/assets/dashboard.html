@@ -487,7 +487,7 @@ async function connect() {
       else if (m.type==='sync_complete')  { setSyncPill(0); toast(`Sync completato`, '#3a8cf0'); }
       else if (m.CdA !== undefined) { document.getElementById('waiting').style.display='none';
         updateAthletePanel(m); }
-    } catch{}
+    } catch(err){ console.error('[ws] message error:', err, e.data?.slice?.(0,200)); }
   };
 }
 connect();
@@ -995,10 +995,11 @@ let athleteColorIdx = 0;
 
 function handleAthletesMsg(msg) {
   const panel = document.getElementById('athlete-panels');
+  const list = msg.list || msg.athletes || [];
 
   // Rimuovi atleti non più connessi
   Object.keys(athleteState).forEach(id => {
-    if (!msg.list.find(a => a.deviceId === id)) {
+    if (!list.find(a => a.deviceId === id)) {
       delete athleteState[id];
       const el = document.getElementById('ap_' + id.replace(/:/g,''));
       if (el) el.remove();
@@ -1006,7 +1007,7 @@ function handleAthletesMsg(msg) {
   });
 
   // Aggiungi nuovi atleti
-  msg.list.forEach(a => {
+  list.forEach(a => {
     const safeId = a.deviceId.replace(/:/g,'');
     if (athleteState[a.deviceId]) return;   // già esiste
     const color = ATHLETE_COLORS[athleteColorIdx % ATHLETE_COLORS.length];
@@ -1025,7 +1026,7 @@ function handleAthletesMsg(msg) {
 
   // Aggiorna pill BLE e overlay waiting
   const bleEl = document.getElementById('p-ble');
-  const count  = msg.list.length;
+  const count  = list.length;
   if (count === 0) {
     bleEl.textContent = 'BLE —'; bleEl.className = 'pill pm';
     document.getElementById('waiting').style.display = 'flex';
