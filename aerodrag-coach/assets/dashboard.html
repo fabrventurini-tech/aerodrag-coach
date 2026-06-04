@@ -175,7 +175,7 @@ body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',mo
   <p>In attesa del device atleta...<br>
      Assicurati che l'ESP32 sia acceso<br>
      e connesso al WiFi <strong style="color:var(--teal)">AeroDrag</strong> del Pi.<br>
-     <span style="font-size:10px;color:var(--muted)">ws://192.168.8.1:8080/device</span></p>
+     <span style="font-size:10px;color:var(--muted)">ws://192.168.8.1:8080/device (ESP32) · coach: ws://192.168.7.1:8080/coach</span></p>
 </div>
 <div id="toast"></div>
 
@@ -455,7 +455,7 @@ const lapBounds = [];
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 let ws, pingTs, reconnTimer;
-const _piHost = (location.host && location.protocol !== 'file:') ? location.host : '192.168.8.1:8080';
+const _piHost = (location.host && location.protocol !== 'file:') ? location.host : '192.168.7.1:8080';
 document.getElementById('r-addr').textContent = _piHost;
 
 async function connect() {
@@ -1180,9 +1180,9 @@ async function loadHistSessions() {
   try {
     // Prova prima il receiver locale del PC (porta 8081, salva sul disco del PC)
     // Fallback al Pi (porta 8080, salva sulla microSD)
-    let sessUrl = 'http://192.168.8.2:8081/sessions';
+    let sessUrl = 'http://192.168.7.2:8081/sessions';
     try { await fetch(sessUrl, { method:'HEAD', signal: AbortSignal.timeout(1000) });
-          sessSourceBase = 'http://192.168.8.2:8081/sessions'; }
+          sessSourceBase = 'http://192.168.7.2:8081/sessions'; }
     catch { sessUrl = '/api/sessions'; sessSourceBase = '/api/sessions'; }
     const res = await fetch(sessUrl);
     const sessions = await res.json();
