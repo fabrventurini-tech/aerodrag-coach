@@ -4,20 +4,22 @@
   "description": "AeroDrag Coach Dashboard — App desktop",
   "main": "main.js",
   "scripts": {
-    "start":         "electron .",
-    "build:win":     "electron-builder --win --x64",
-    "build:mac":     "electron-builder --mac",
-    "build:linux":   "electron-builder --linux"
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
   },
-  "dependencies": {},
+  "dependencies": {
+    "chart.js": "^4.5.1"
+  },
   "devDependencies": {
-    "electron":         "^28.0.0",
+    "electron": "^28.0.0",
     "electron-builder": "^24.0.0"
   },
   "build": {
-    "appId":       "it.aerodrag.coach",
+    "appId": "it.aerodrag.coach",
     "productName": "AeroDrag Coach",
-    "copyright":   "AeroDrag Pro",
+    "copyright": "AeroDrag Pro",
     "directories": {
       "output": "dist"
     },
@@ -30,28 +32,46 @@
     "extraResources": [
       {
         "from": "../pc-receiver",
-        "to":   "pc-receiver",
-        "filter": ["**/*", "!node_modules"]
+        "to": "pc-receiver",
+        "filter": [
+          "**/*",
+          "!node_modules"
+        ]
       }
     ],
     "win": {
-      "icon":   "assets/icon.ico",
-      "target": [{ "target": "nsis", "arch": ["x64"] }]
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     },
     "nsis": {
-      "oneClick":           true,
+      "oneClick": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName":       "AeroDrag Coach"
+      "shortcutName": "AeroDrag Coach"
     },
     "mac": {
-      "icon":   "assets/icon.icns",
-      "target": [{ "target": "dmg" }],
+      "icon": "assets/icon.icns",
+      "target": [
+        {
+          "target": "dmg"
+        }
+      ],
       "category": "public.app-category.sports"
     },
     "linux": {
-      "icon":   "assets/icon.png",
-      "target": [{ "target": "AppImage" }],
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "AppImage"
+        }
+      ],
       "category": "Sports"
     }
   }
