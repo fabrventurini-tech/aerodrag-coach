@@ -531,11 +531,12 @@ function ingest(f, live) {
   const lp = laps[lap];
   lp.n++; lp.sumCdA+=f.CdA; lp.sumPwr+=(f.pwr||0);
   lp.sumSpd+=(f.spd||0); lp.sumHr+=(f.hr||0);
-  const paero = Math.round((f.pwr||0)*(f.pctAero||76)/100);
+  const pctAeroVal = f.pctAero != null ? f.pctAero : 0;
+  const paero = Math.round((f.pwr||0)*pctAeroVal/100);
   lp.sumAero+=paero; lp.sumWind+=(f.wind||0); lp.sumCad+=(f.cad||0);
   lp.pts.push({s:(f.t-lp.startTs)/1000, CdA:f.CdA, pwr:f.pwr||0, hr:f.hr||0,
                spd:f.spd||0, wind:f.wind||0, aero:paero, cad:f.cad||0,
-               pitch:f.pitch||0, roll:f.roll||0, rho:f.rho||1.2});
+               pitch:f.pitch||0, rho:f.rho||1.2});
   curLap = lap;
   if (f.lapEvent && live) toast(`Auto-LAP — Lap ${lap}`, '#f0a020');
 
@@ -555,7 +556,7 @@ function ingest(f, live) {
   sess.avPwr  = Math.round(sess.sumPwr/sess.n);
   sess.avHr   = Math.round(sess.sumHr/sess.n);
   sess.avAero = Math.round(sess.sumAero/sess.n);
-  sess.dist  += (f.spd||0)/3.6*0.5;
+  sess.dist  += (f.spd||0)/3.6*0.1;
 
   const push = (a,v) => { a.push(v); if (a.length>N) a.shift(); };
   push(cBuf, +(f.CdA*100).toFixed(2));
@@ -606,10 +607,10 @@ function updateUI(f, paero, lap) {
   $('#m-bat').textContent  = (f.battery||0)+'%';
   $('#m-dist').textContent = (sess.dist/1000).toFixed(1)+'km';
   $('#m-pitch').textContent = (f.pitch||0).toFixed(1)+'°';
-  $('#m-roll').textContent  = (f.roll||0).toFixed(1)+'°';
+  $('#m-roll').textContent  = '— °';
   $('#m-rho').textContent   = (f.rho||0).toFixed(4)+' kg/m³';
-  $('#m-temp').textContent  = (f.temp||0).toFixed(1)+'°C';
-  $('#m-hum').textContent   = ' '+(f.humidity||0).toFixed(0)+'%';
+  $('#m-temp').textContent  = '—°C';
+  $('#m-hum').textContent   = ' —%';
 
   $('#pk-cda').textContent = sess.pkCdA.toFixed(3);
   $('#av-cda').textContent = av(sess.n);
@@ -621,7 +622,7 @@ function updateUI(f, paero, lap) {
   $('#av-pwr').textContent = sess.avPwr;
   $('#pk-aero').textContent= sess.pkAero;
   $('#av-aero').textContent= sess.avAero;
-  $('#pct-aero').textContent= (f.pctAero||76)+'%';
+  $('#pct-aero').textContent= (f.pctAero != null ? f.pctAero : '—')+'%';
   $('#pk-hr').textContent  = sess.pkHr;
   $('#av-hr').textContent  = sess.avHr;
 
@@ -637,7 +638,7 @@ function updateUI(f, paero, lap) {
   $('#r-frames').textContent   = sess.frames;
 
   // Power breakdown
-  const pctA = f.pctAero||76, pctR = Math.max(0, Math.round((f.pwr>0?(f.pwr-paero)/f.pwr*100:0)));
+  const pctA = f.pctAero != null ? f.pctAero : 0, pctR = Math.max(0, Math.round((f.pwr>0?(f.pwr-paero)/f.pwr*100:0)));
   document.getElementById('pwr-breakdown').innerHTML = [
     ['Aerodinamica', pctA, '#e83a50'],
     ['Rolling',      pctR, '#3a8cf0'],
