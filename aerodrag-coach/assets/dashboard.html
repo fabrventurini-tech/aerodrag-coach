@@ -199,8 +199,8 @@ body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',mo
         onclick="sendCmd('lap')" title="Lap (Spazio)">◎ LAP</button>
       <button class="ctrl-btn" style="color:var(--red);border-color:rgba(232,58,80,.4)"
         onclick="sendCmd('stop')" title="Ferma sessione (X)">⬛ STOP</button>
-      <button class="ctrl-btn" style="color:var(--purple);border-color:rgba(139,92,246,.4)"
-        onclick="sendOta()" title="OTA firmware">⬆ OTA</button>
+      <button class="ctrl-btn" style="color:var(--muted);border-color:rgba(100,120,160,.2);opacity:.45;cursor:not-allowed"
+        title="OTA non ancora supportato dal Pi — aggiornare server.js" disabled>⬆ OTA</button>
     </div>
     <span style="margin-left:auto;font-size:10px;color:var(--dim)" id="clock"></span>
     <span class="pill pm" id="p-conn">Connessione...</span>
@@ -479,10 +479,11 @@ async function connect() {
       else if (m.type==='cmd_error')   { toast('Device non connesso','#e83a50'); }
       else if (m.type==='lap_note')    { applyNote(m.lapNum, m.text); }
       else if (m.type==='athletes')    { handleAthletesMsg(m); }
-      else if (m.type==='sync_status') { setSyncPill(m.pending); }
-      else if (m.type==='session_saved')  { toast(`Sessione salvata — ${m.athleteName||''} · ${m.lapCount||0} lap`,'#00c896'); }
-      else if (m.type==='session_synced') { setSyncPill(0); toast('Sessione sincronizzata al PC','#3a8cf0'); }
-      else if (m.type==='sync_complete')  { setSyncPill(0); }
+      else if (m.type==='sync_status')    { setSyncPill(m.pending); }
+      else if (m.type==='sync_progress')  { setSyncPill(m.remaining||0); }
+      else if (m.type==='session_saved')  { toast(`💾 ${m.athleteName||'Atleta'} · ${m.lapCount||0} lap salvati`, '#00c896'); }
+      else if (m.type==='session_synced') { setSyncPill(0); toast(`✓ Sync PC — ${m.filename||''}`, '#3a8cf0'); }
+      else if (m.type==='sync_complete')  { setSyncPill(0); toast(`Sync completato`, '#3a8cf0'); }
       else if (m.CdA !== undefined) { document.getElementById('waiting').style.display='none';
         updateAthletePanel(m); }
     } catch{}
