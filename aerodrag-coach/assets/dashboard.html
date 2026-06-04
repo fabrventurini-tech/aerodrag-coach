@@ -436,6 +436,11 @@ body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',mo
 <script>
 const LAP_COLORS = ['#00c896','#f0a020','#3a8cf0','#8b5cf6','#f06090','#22c55e','#fb923c','#38bdf8'];
 const N = 180;
+const $ = id => document.getElementById(id);
+const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+const ATHLETE_COLORS = ['#00c896','#f0a020','#3a8cf0','#8b5cf6','#f06090','#22c55e'];
+const athleteState = {};
+let athleteColorIdx = 0;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const sess = { n:0, sumCdA:0, sumPwr:0, sumSpd:0, sumHr:0, sumAero:0, sumWind:0, sumPitch:0, sumRho:0,
@@ -981,17 +986,10 @@ document.addEventListener('keydown', e=>{
   if (e.key==='x') sendCmd('stop');
 });
 
-// Helpers
-const $ = id => document.getElementById(id);
-const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-
 // Clock
 setInterval(()=>{ document.getElementById('clock').textContent=new Date().toLocaleTimeString('it-IT'); },1000);
 
 // ── Multi-atleta ──────────────────────────────────────────────────────────────
-const ATHLETE_COLORS = ['#00c896','#f0a020','#3a8cf0','#8b5cf6','#f06090','#22c55e'];
-const athleteState = {};   // { deviceId: { name, color, cda, pwr, spd, hr, cad, wind, lap, chart, buf } }
-let athleteColorIdx = 0;
 
 function handleAthletesMsg(msg) {
   const panel = document.getElementById('athlete-panels');
