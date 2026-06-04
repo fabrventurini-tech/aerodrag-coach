@@ -495,8 +495,6 @@ async function connect() {
     } catch(err){ console.error('[ws] message error:', err, e.data?.slice?.(0,200)); }
   };
 }
-connect();
-
 function setConn(s) {
   const el = document.getElementById('p-conn');
   if (s==='connected') { el.textContent='Pi ✓'; el.className='pill pt'; }
@@ -988,6 +986,8 @@ document.addEventListener('keydown', e=>{
 
 // Clock
 setInterval(()=>{ document.getElementById('clock').textContent=new Date().toLocaleTimeString('it-IT'); },1000);
+
+connect();
 
 // ── Multi-atleta ──────────────────────────────────────────────────────────────
 
