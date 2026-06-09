@@ -144,6 +144,13 @@ function createMainWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'assets', 'dashboard.html'));
 
+  // Inoltra i console.log/error del renderer al terminale — utile per
+  // diagnosticare freeze del renderer (il processo main sopravvive).
+  mainWindow.webContents.on('console-message', (_e, level, message, line) => {
+    const tag = level === 2 ? '[renderer:ERROR]' : '[renderer]';
+    console.log(`${tag} ${message}  (dashboard.html:${line})`);
+  });
+
   mainWindow.once('ready-to-show', () => {
     if (loadingWin) { loadingWin.close(); loadingWin = null; }
     mainWindow.show();

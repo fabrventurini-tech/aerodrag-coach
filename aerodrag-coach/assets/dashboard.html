@@ -676,7 +676,17 @@ function updateUI(f, paero, lap) {
   mainChart.update('none');
   sparkChart.update('none');
   if (uiTick % 20 === 0) updateLapList();
-  if (uiTick % 50 === 0) { updateLapBars(); updateCompare(); updateOverlay(); updateTable(); }
+  // Aggiorna SOLO la tab visibile — evita di ricostruire grafici nascosti
+  // ad ogni ciclo (causa di freeze/hang con molti lap)
+  if (uiTick % 50 === 0) {
+    try {
+      if (activeTab === 'live')         updateLapBars();
+      else if (activeTab === 'compare') updateCompare();
+      else if (activeTab === 'overlay') updateOverlay();
+      else if (activeTab === 'table')   updateTable();
+      else if (activeTab === 'radar')   updateRadar();
+    } catch (err) { console.error('[updateUI] chart update failed:', err); }
+  }
 }
 
 // ── Charts ────────────────────────────────────────────────────────────────────
@@ -938,16 +948,20 @@ function updateLapList() {
 }
 
 // Tab switch
+let activeTab = 'live';
 function switchTab(name, btn) {
+  activeTab = name;
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
   ['live','compare','overlay','radar','table'].forEach(t=>{
     document.getElementById('tab-'+t).style.display=t===name?'flex':'none';
   });
-  if (name==='radar') updateRadar();
-  if (name==='compare') updateCompare();
-  if (name==='overlay') updateOverlay();
-  if (name==='table') updateTable();
+  try {
+    if (name==='radar')   updateRadar();
+    if (name==='compare') updateCompare();
+    if (name==='overlay') updateOverlay();
+    if (name==='table')   updateTable();
+  } catch (err) { console.error('[switchTab] update failed:', err); }
 }
 
 // Coach commands — definita una sola volta più in basso (supporta targetDeviceId)
