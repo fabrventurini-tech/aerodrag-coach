@@ -436,7 +436,7 @@ body{background:var(--bg);color:var(--text);font-family:'SF Mono','Fira Code',mo
 <script>
 const LAP_COLORS = ['#00c896','#f0a020','#3a8cf0','#8b5cf6','#f06090','#22c55e','#fb923c','#38bdf8'];
 const N = 180;
-const $ = id => document.getElementById(id);
+const $ = id => document.getElementById(id[0] === '#' ? id.slice(1) : id);
 const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 const ATHLETE_COLORS = ['#00c896','#f0a020','#3a8cf0','#8b5cf6','#f06090','#22c55e'];
 const athleteState = {};
@@ -534,9 +534,12 @@ function ingest(f, live) {
   const pctAeroVal = f.pctAero != null ? f.pctAero : 0;
   const paero = Math.round((f.pwr||0)*pctAeroVal/100);
   lp.sumAero+=paero; lp.sumWind+=(f.wind||0); lp.sumCad+=(f.cad||0);
-  lp.pts.push({s:(f.t-lp.startTs)/1000, CdA:f.CdA, pwr:f.pwr||0, hr:f.hr||0,
-               spd:f.spd||0, wind:f.wind||0, aero:paero, cad:f.cad||0,
-               pitch:f.pitch||0, rho:f.rho||1.2});
+  // Campiona 1 punto ogni 5 frame (~2Hz a 10Hz ESP32) con cap — stesso schema
+  // del Pi. Evita crescita illimitata e rallentamento dei grafici di confronto.
+  if (lp.n % 5 === 0 && lp.pts.length < 2400)
+    lp.pts.push({s:(f.t-lp.startTs)/1000, CdA:f.CdA, pwr:f.pwr||0, hr:f.hr||0,
+                 spd:f.spd||0, wind:f.wind||0, aero:paero, cad:f.cad||0,
+                 pitch:f.pitch||0, rho:f.rho||1.2});
   curLap = lap;
   if (f.lapEvent && live) toast(`Auto-LAP — Lap ${lap}`, '#f0a020');
 
@@ -725,7 +728,7 @@ const mainChart = new Chart($('mainChart'),{
                     'km/h':`Velocità: ${v} km/h`,'FC/10':`FC: ${(v*10).toFixed(0)} bpm`};
         return lbls[ctx.dataset.label]||'';
       }}}},
-    scales:{x:{display:false},y:{min:20,max:45,ticks:{color:'#4a5a7a',font:{size:9}},
+    scales:{x:{display:false},y:{suggestedMin:10,suggestedMax:45,ticks:{color:'#4a5a7a',font:{size:9}},
     grid:{color:'rgba(100,140,200,.06)'}}}},
   plugins:[lapLinePlugin]
 });
@@ -740,7 +743,7 @@ function updateLapBars() {
   const barOpts = (min,max,cb) => ({responsive:true,maintainAspectRatio:false,animation:false,
     plugins:{legend:{display:false},tooltip:{callbacks:{label:cb}}},
     scales:{x:{ticks:{color:'#4a5a7a',font:{size:9}},grid:{display:false}},
-            y:{min,max,ticks:{color:'#4a5a7a',font:{size:8},callback:v=>+v.toFixed(3)},
+            y:{...(min!==max?{suggestedMin:min,suggestedMax:max}:{}),ticks:{color:'#4a5a7a',font:{size:8},callback:v=>+v.toFixed(3)},
                grid:{color:'rgba(100,140,200,.05)'}}}});
   const upd = (chart, data) => { chart.data.labels=ns.map(n=>`L${n}`);
     chart.data.datasets[0].data=data; chart.data.datasets[0].backgroundColor=cols.map(c=>c+'99');
@@ -775,7 +778,7 @@ function updateCompare() {
       backgroundColor:'rgba(15,20,32,.92)',titleColor:'#7a90b8',bodyColor:'#c8d8f0',
       callbacks:{label:ctx=>cb(ctx)}}},
     scales:{x:{ticks:{color:'#4a5a7a',font:{size:8}},grid:{color:'rgba(100,140,200,.04)'}},
-            y:{min,max,ticks:{color:'#4a5a7a',font:{size:8}},grid:{color:'rgba(100,140,200,.05)'}}}});
+            y:{...(min!==max?{suggestedMin:min,suggestedMax:max}:{}),ticks:{color:'#4a5a7a',font:{size:8}},grid:{color:'rgba(100,140,200,.05)'}}}});
   const upd=(c,ds)=>{c.data.labels=labels;c.data.datasets=ds;c.update('none');};
   if (!cmpCdAC) cmpCdAC=new Chart($('cmpCdA'),{type:'line',data:{labels,datasets:mk('CdA')},
     options:baseOpts(.21,.32,ctx=>`LAP ${ctx.datasetIndex+1}: ${ctx.raw.toFixed(4)}`)});
@@ -808,7 +811,7 @@ function updateOverlay() {
   const sopts = (min,max) => ({responsive:true,maintainAspectRatio:false,animation:false,
     plugins:{legend:{display:false}},
     scales:{x:{ticks:{color:'#4a5a7a',font:{size:8}},grid:{color:'rgba(100,140,200,.03)'}},
-            y:{min,max,ticks:{color:'#4a5a7a',font:{size:8}},grid:{color:'rgba(100,140,200,.05)'}}}});
+            y:{...(min!==max?{suggestedMin:min,suggestedMax:max}:{}),ticks:{color:'#4a5a7a',font:{size:8}},grid:{color:'rgba(100,140,200,.05)'}}}});
   if (!ovCdaWC) ovCdaWC=new Chart($('ovCdaWind'),{type:'line',
     data:{labels:labs,datasets:[makeDS('CdA','#00c896'),makeDS('wind','#3a8cf0')]},
     options:sopts(.20,.34)});
@@ -967,7 +970,9 @@ function switchTab(name, btn) {
 
 // Coach commands — definita una sola volta più in basso (supporta targetDeviceId)
 function handleEcho(m) {
-  if (m.action==='lap') { lapBounds.push(sBuf.filter(v=>v!==null).length-1); toast('LAP segnato','#f0a020'); }
+  // Nota: la linea di separazione lap viene aggiunta da ingest() quando arriva
+  // il primo frame del nuovo lap — qui solo feedback visivo del comando.
+  if (m.action==='lap') toast('LAP segnato','#f0a020');
 }
 
 // Notes
@@ -1106,7 +1111,7 @@ function createAthletePanel(deviceId, name, color, safeId) {
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       plugins: { legend: { display: false } },
-      scales: { x: { display: false }, y: { min: 0.20, max: 0.35,
+      scales: { x: { display: false }, y: { suggestedMin: 0.20, suggestedMax: 0.35,
         ticks: { color: '#4a5a7a', font: { size: 8 } },
         grid: { color: 'rgba(100,140,200,.06)' } } }
     }
