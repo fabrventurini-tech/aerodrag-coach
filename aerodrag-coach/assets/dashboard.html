@@ -1178,12 +1178,16 @@ async function loadHistSessions() {
   const el = document.getElementById('hist-list');
   el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:11px">Caricamento...</div>';
   try {
-    // Prova prima il receiver locale del PC (porta 8081, salva sul disco del PC)
-    // Fallback al Pi (porta 8080, salva sulla microSD)
+    // Prova prima il receiver locale del PC (porta 8081)
+    // Fallback al Pi via USB (192.168.7.1:8080)
     let sessUrl = 'http://192.168.7.2:8081/sessions';
-    try { await fetch(sessUrl, { method:'HEAD', signal: AbortSignal.timeout(1000) });
-          sessSourceBase = 'http://192.168.7.2:8081/sessions'; }
-    catch { sessUrl = '/api/sessions'; sessSourceBase = '/api/sessions'; }
+    try {
+      await fetch(sessUrl, { method:'HEAD', signal: AbortSignal.timeout(1000) });
+      sessSourceBase = 'http://192.168.7.2:8081/sessions';
+    } catch {
+      sessUrl = 'http://192.168.7.1:8080/api/sessions';
+      sessSourceBase = 'http://192.168.7.1:8080/api/sessions';
+    }
     const res = await fetch(sessUrl);
     const sessions = await res.json();
     if (!sessions.length) {
@@ -1192,6 +1196,7 @@ async function loadHistSessions() {
     }
     el.innerHTML = '';
     sessions.forEach(sess => {
+      const laps = sess.laps || [];
       const div = document.createElement('div');
       div.className = 'hp-sess';
       div.id = 'sess_' + sess.id;
@@ -1200,21 +1205,21 @@ async function loadHistSessions() {
              onclick="toggleSessExpand('${sess.id}')">
           <div>
             <div style="font-size:12px;font-weight:600;color:var(--text)">${sess.date} ${sess.time}</div>
-            <div style="font-size:10px;color:var(--muted)">${sess.lapCount} lap</div>
+            <div style="font-size:10px;color:var(--muted)">${sess.athleteName||''} · ${sess.lapCount||laps.length} lap</div>
           </div>
           <span style="font-size:10px;color:var(--muted)" id="arr_${sess.id}">▶</span>
         </div>
         <div id="laps_${sess.id}" style="display:none;margin-top:6px">
-          ${sess.laps.map(lap => `
+          ${laps.map(lap => `
             <div class="hp-lap" id="ghost_${sess.id}_${lap.lapNum}"
                  onclick="toggleGhostLap('${sess.id}', ${lap.lapNum})">
               <span style="width:8px;height:8px;border-radius:50%;background:var(--muted);
                            display:inline-block" id="dot_${sess.id}_${lap.lapNum}"></span>
               <div style="flex:1">
                 <span style="color:var(--dim)">LAP ${lap.lapNum}</span>
-                <span style="color:var(--teal);margin-left:8px">${lap.avgCdA.toFixed(3)}</span>
-                <span style="color:var(--amber);margin-left:6px">${lap.avgPowerW}W</span>
-                <span style="font-size:9px;color:var(--muted);margin-left:6px">${fmt(lap.durationS)}</span>
+                <span style="color:var(--teal);margin-left:8px">${(lap.avgCdA||0).toFixed(3)}</span>
+                <span style="color:var(--amber);margin-left:6px">${lap.avgPowerW||0}W</span>
+                <span style="font-size:9px;color:var(--muted);margin-left:6px">${fmt(lap.durationS||0)}</span>
               </div>
             </div>
             ${lap.notes ? `<div style="font-size:9px;color:var(--dim);padding:2px 8px 4px;
