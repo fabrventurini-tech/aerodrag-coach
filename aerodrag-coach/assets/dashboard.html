@@ -1261,8 +1261,8 @@ async function toggleGhostLap(sessId, lapNum) {
   try {
     const res  = await fetch(`${sessSourceBase}/${sessId}`);
     const data = await res.json();
-    const lap  = data.laps.find(l => l.lapNum === lapNum);
-    if (!lap || !lap.pts?.length) { dot.style.background='var(--red)'; return; }
+    const lap  = (data.laps || []).find(l => l.lapNum === lapNum);
+    if (!lap || !lap.pts?.length) { dot.style.background='var(--red)'; toast('Lap senza dati dettagliati','#f0a020'); return; }
 
     const color = GHOST_COLORS[ghostColorIdx % GHOST_COLORS.length];
     ghostColorIdx++;
