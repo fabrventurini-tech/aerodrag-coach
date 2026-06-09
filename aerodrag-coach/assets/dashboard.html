@@ -699,7 +699,8 @@ const sparkChart = new Chart($('spark'), {
 
 const lapLinePlugin = {id:'ll', afterDraw(chart){
   lapBounds.forEach(idx=>{
-    const x=chart.scales.x.getPixelForIndex(idx);
+    // Chart.js v4: getPixelForIndex rimosso → usa getPixelForValue
+    const x=chart.scales.x.getPixelForValue(idx);
     const ctx=chart.ctx;
     ctx.save();ctx.beginPath();ctx.moveTo(x,chart.chartArea.top);ctx.lineTo(x,chart.chartArea.bottom);
     ctx.strokeStyle='rgba(200,200,200,.2)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.stroke();
