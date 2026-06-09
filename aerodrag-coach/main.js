@@ -11,6 +11,12 @@ const http = require('http');
 const fs   = require('fs');
 const os   = require('os');
 
+// Disabilita l'accelerazione hardware GPU — su molti PC Windows il processo
+// GPU di Electron crasha con il rendering canvas pesante (Chart.js), causando
+// schermo nero e app bloccata senza errori JS. Il rendering software è più
+// stabile e ampiamente sufficiente per questa dashboard.
+app.disableHardwareAcceleration();
+
 const PI_HOST     = '192.168.7.1:8080';
 const PI_WS_URL   = `ws://${PI_HOST}/coach`;
 const RECEIVER_JS = app.isPackaged
@@ -149,6 +155,19 @@ function createMainWindow() {
   mainWindow.webContents.on('console-message', (_e, level, message, line) => {
     const tag = level === 2 ? '[renderer:ERROR]' : '[renderer]';
     console.log(`${tag} ${message}  (dashboard.html:${line})`);
+  });
+
+  // Intercetta crash del processo renderer/GPU (schermo nero) — li logga
+  // e ricarica la finestra invece di lasciarla bloccata.
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error('[main] RENDER PROCESS GONE:', details.reason, '— exitCode', details.exitCode);
+    if (!app.isQuitting && mainWindow) mainWindow.reload();
+  });
+  mainWindow.webContents.on('unresponsive', () => {
+    console.error('[main] Renderer NON risponde (possibile freeze).');
+  });
+  mainWindow.webContents.on('responsive', () => {
+    console.log('[main] Renderer di nuovo responsivo.');
   });
 
   mainWindow.once('ready-to-show', () => {
