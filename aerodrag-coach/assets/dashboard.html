@@ -1019,6 +1019,7 @@ function handleAthletesMsg(msg) {
   // Rimuovi atleti non più connessi
   Object.keys(athleteState).forEach(id => {
     if (!list.find(a => a.deviceId === id)) {
+      clearTimeout(athleteState[id].noDataTimer);
       delete athleteState[id];
       const el = document.getElementById('ap_' + id.replace(/:/g,''));
       if (el) el.remove();
@@ -1033,15 +1034,17 @@ function handleAthletesMsg(msg) {
     athleteColorIdx++;
     athleteState[a.deviceId] = {
       name: a.athleteName, color, deviceId: a.deviceId,
+      fw: a.fw || '',
       cda:'—', pwr:'—', spd:'—', hr:'—', cad:'—', lap:1,
       buf: Array(90).fill(null), chart: null,
+      noDataTimer: null, hasData: false,
     };
     createAthletePanel(a.deviceId, a.athleteName, color, safeId);
   });
 
   // Nascondi/mostra placeholder
   const noAth = panel.querySelector('.no-athletes');
-  if (noAth) noAth.style.display = msg.list.length ? 'none' : 'flex';
+  if (noAth) noAth.style.display = list.length ? 'none' : 'flex';
 
   // Aggiorna pill BLE e overlay waiting
   const bleEl = document.getElementById('p-ble');
@@ -1061,10 +1064,12 @@ function createAthletePanel(deviceId, name, color, safeId) {
   const div = document.createElement('div');
   div.className = 'athlete-panel';
   div.id = 'ap_' + safeId;
+  const fwLabel = athleteState[deviceId].fw ? `<span style="font-size:9px;color:var(--muted);margin-left:4px">fw ${athleteState[deviceId].fw}</span>` : '';
   div.innerHTML = `
     <div class="athlete-header">
       <span class="athlete-dot" style="background:${color}"></span>
       <span class="athlete-name" style="color:${color}">${name}</span>
+      ${fwLabel}
       <span class="athlete-cda" id="ac_cda_${safeId}" style="color:${color}">—.———</span>
     </div>
     <div class="athlete-sub">
@@ -1074,6 +1079,12 @@ function createAthletePanel(deviceId, name, color, safeId) {
       <span>rpm: <b id="ac_cad_${safeId}">—</b></span>
       <span>🔋: <b id="ac_bat_${safeId}">—</b></span>
       <span style="margin-left:auto">LAP <b id="ac_lap_${safeId}">1</b></span>
+    </div>
+    <div id="ac_nodata_${safeId}" style="display:none;padding:6px 10px;
+      background:rgba(240,160,32,.07);border-bottom:1px solid rgba(240,160,32,.2);
+      font-size:10px;color:#f0a020;text-align:center">
+      ⚡ ESP32 connesso · in attesa di misura valida<br>
+      <span style="font-size:9px;color:var(--muted)">(pedalare + pitot attivo)</span>
     </div>
     <div class="athlete-chart">
       <canvas id="ac_chart_${safeId}" style="width:100%;height:100%"></canvas>
@@ -1116,6 +1127,18 @@ function createAthletePanel(deviceId, name, color, safeId) {
         grid: { color: 'rgba(100,140,200,.06)' } } }
     }
   });
+
+  // Avvia timer "no data": se entro 2.5s non arriva telemetria, mostra banner
+  const state2 = athleteState[deviceId];
+  state2.noDataTimer = setTimeout(() => {
+    if (!state2.hasData) setAthleteNoData(deviceId, true);
+  }, 2500);
+}
+
+function setAthleteNoData(deviceId, show) {
+  const safeId = deviceId.replace(/:/g,'');
+  const el = document.getElementById('ac_nodata_' + safeId);
+  if (el) el.style.display = show ? 'block' : 'none';
 }
 
 function updateAthletePanel(frame) {
@@ -1124,6 +1147,15 @@ function updateAthletePanel(frame) {
   const state = athleteState[deviceId];
   if (!state) return;
   const safeId = deviceId.replace(/:/g,'');
+
+  // Frame ricevuto: nascondi banner no-data e resetta timer (fisica tornata valida).
+  // Se CdA assente non è un frame telemetria valido — ignora.
+  if (!frame.CdA) return;
+  clearTimeout(state.noDataTimer);
+  if (!state.hasData) { state.hasData = true; setAthleteNoData(deviceId, false); }
+  // Riavvia timer: se la fisica diventa non valida (es. atleta si ferma), il silenzio
+  // torna a mostrare il banner dopo 4s (più conservativo a sessione iniziata)
+  state.noDataTimer = setTimeout(() => setAthleteNoData(deviceId, true), 4000);
 
   state.cda = frame.CdA?.toFixed(3) || '—';
   state.pwr = frame.pwr || '—';
@@ -1176,8 +1208,18 @@ function sendCmd(action, targetDeviceId) {
 function sendOta() {
   const url = prompt('URL firmware .bin per OTA:');
   if (!url) return;
+  // Guardia strstr: il firmware fa parsing a strstr sui primi 127 byte del payload.
+  // "ota" è già nel campo action (intenzionale), ma non devono comparire
+  // le altre keyword in campi non-action.
+  if (/lap|stop/.test(url)) {
+    toast('URL OTA non valido: contiene "lap" o "stop"', '#e83a50'); return;
+  }
+  const payload = JSON.stringify({ type:'cmd', action:'ota', url, deviceId: focusDevice || null });
+  if (payload.length > 120) {
+    toast(`URL troppo lungo (${payload.length} byte, max 120)`, '#e83a50'); return;
+  }
   if (ws?.readyState !== 1) { toast('Nessuna connessione al Pi', '#e83a50'); return; }
-  ws.send(JSON.stringify({ type:'cmd', action:'ota', url, deviceId: focusDevice || null }));
+  ws.send(payload);
   toast('OTA avviato → ' + url.split('/').pop(), '#8b5cf6');
 }
 
