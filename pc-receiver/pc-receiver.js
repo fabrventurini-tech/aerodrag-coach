@@ -2,6 +2,9 @@
  * AeroDrag PC Receiver v2
  * Riceve sessioni dal Pi automaticamente — sia in tempo reale che in ritardo.
  * Salva in: Documents/AeroDrag/sessions/  (o env AERODRAG_SESSIONS_DIR)
+ *
+ * Contract: v0.1.0 — fonte di verità in aerodrag-firmware/docs/CONTRACT.md
+ *   Schema sessione { ts, deviceId, athleteName, laps[] } condiviso con l'app.
  */
 
 // Imports — devono essere a livello modulo, non inline
