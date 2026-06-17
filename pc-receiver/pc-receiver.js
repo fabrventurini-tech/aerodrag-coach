@@ -3,7 +3,7 @@
  * Riceve sessioni dal Pi automaticamente — sia in tempo reale che in ritardo.
  * Salva in: Documents/AeroDrag/sessions/  (o env AERODRAG_SESSIONS_DIR)
  *
- * Contract: v0.1.0 — fonte di verità in aerodrag-firmware/docs/CONTRACT.md
+ * Contract: v0.1.2 — fonte di verità in aerodrag-firmware/docs/CONTRACT.md
  *   Schema sessione { ts, deviceId, athleteName, laps[] } condiviso con l'app.
  */
 
@@ -60,8 +60,10 @@ const server = http.createServer((req, res) => {
   // POST /receive?filename=... — riceve una sessione dal Pi
   if (req.method === 'POST' && req.url.startsWith('/receive')) {
     const filename = new URL(req.url, 'http://x').searchParams.get('filename') || '';
-    // Accetta: session_TIMESTAMP.json  oppure  session_TIMESTAMP_DEVICEID.json
-    if (!/^session_\d+(_[A-Fa-f0-9]+)?\.json$/.test(filename)) {
+    // Contract v0.1.2 §5: filename SEMPRE session_{ts}_{deviceIdHex}.json —
+    // suffisso deviceId obbligatorio (hex non vuoto). Niente 'unknown' né forma
+    // anonima session_{ts}.json: il Pi garantisce l'identità alla sorgente (§3).
+    if (!/^session_\d+_[A-Fa-f0-9]+\.json$/.test(filename)) {
       res.writeHead(400); return res.end('Invalid');
     }
     let body = '';
@@ -110,7 +112,8 @@ const server = http.createServer((req, res) => {
   const m = req.url.match(/^\/sessions\/(.+)$/);
   if (m && req.method === 'GET') {
     // Fix R1: valida pattern prima di path.join — previene path traversal
-    if (!/^session_\d+(_[A-Fa-f0-9]+)?$/.test(m[1])) {
+    // Contract v0.1.2 §5: suffisso deviceId obbligatorio (mirror del /receive)
+    if (!/^session_\d+_[A-Fa-f0-9]+$/.test(m[1])) {
       res.writeHead(400); return res.end('invalid id');
     }
     try {
