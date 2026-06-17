@@ -78,14 +78,16 @@ Sostituire i file placeholder con le icone reali:
 
 ## Conformità contratto
 
-Ancorato a **`aerodrag-firmware/docs/CONTRACT.md` v0.1.0** (fonte di verità unica).
+Ancorato a **`aerodrag-firmware/docs/CONTRACT.md` v0.1.2** (fonte di verità unica).
 
 - **Dashboard (§4):** non renderizzata dal coach — l'app carica quella servita
   dal Pi (`http://192.168.7.1:8080/dashboard`). L'interpretazione di `pctAero`
   come percentuale 0–100 è quindi responsabilità del Pi (seam `pi↔coach`).
 - **Sessione (§5):** il `pc-receiver` riceve via `POST /receive` e riserve via
   `GET /sessions/:id` lo schema `{ts, deviceId, athleteName, laps[]}` (con
-  `pts[]` incl. `pitch`/`rho`) **verbatim**, senza riscritture.
+  `pts[]` incl. `pitch`/`rho`) **verbatim**, senza riscritture. Il filename è
+  validato a **suffisso `deviceId` obbligatorio** (`^session_\d+_[A-Fa-f0-9]+\.json$`):
+  niente `unknown` né forma anonima (v0.1.2, identità garantita alla sorgente).
 - **Governance:** nessun cambiamento d'interfaccia in autonomia; le modifiche si
   concordano nelle seam issue e si ratificano nel contratto (bump SemVer).
 
