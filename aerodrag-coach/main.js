@@ -3,7 +3,7 @@
  * App desktop senza cornice browser, doppio click per aprire, ESC per uscire.
  * Supporta selezione cartella di destinazione sessioni tramite dialog nativo.
  *
- * Contract: v0.1.2 — fonte di verità in aerodrag-firmware/docs/CONTRACT.md
+ * Contract: v0.1.3 — fonte di verità in aerodrag-firmware/docs/CONTRACT.md
  *   Il coach NON renderizza la dashboard: carica quella servita dal Pi
  *   (PI_URL → /dashboard, §4). La conformità di pctAero (0–100) è del Pi.
  *   Le sessioni (§5) sono ricevute/servite verbatim dal pc-receiver, che
