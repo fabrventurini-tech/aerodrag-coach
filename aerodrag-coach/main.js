@@ -10,7 +10,7 @@
  *   valida il filename a suffisso deviceId obbligatorio (§5 v0.1.2).
  */
 
-const { app, BrowserWindow, globalShortcut, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, dialog, shell, session } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
@@ -18,6 +18,9 @@ const fs   = require('fs');
 const os   = require('os');
 
 const PI_URL      = 'http://192.168.7.1:8080/dashboard';
+// Origine/host del Pi: usati per confinare il contenuto remoto (issue #8)
+const PI_ORIGIN   = new URL(PI_URL).origin;   // http://192.168.7.1:8080
+const PI_HOST     = new URL(PI_URL).host;      // 192.168.7.1:8080
 const RECEIVER_JS = app.isPackaged
   ? path.join(process.resourcesPath, 'pc-receiver', 'pc-receiver.js')
   : path.join(__dirname, '..', 'pc-receiver', 'pc-receiver.js');
@@ -141,10 +144,23 @@ function createMainWindow() {
     backgroundColor: '#07090f', show: false,
     webPreferences: {
       nodeIntegration: false, contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      // Sicurezza (issue #8): contenuto REMOTO → preload MINIMALE senza API
+      // privilegiate. Le API settings/quit restano alle sole finestre locali.
+      preload: path.join(__dirname, 'preload-remote.js'),
+      sandbox: true,
     },
     icon: path.join(__dirname, 'assets', 'icon.png'),
   });
+
+  // Confina il contenuto remoto: niente navigazione fuori dall'origine del Pi,
+  // niente apertura di nuove finestre (issue #8).
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    if (!url.startsWith(PI_ORIGIN + '/') && url !== PI_ORIGIN) {
+      e.preventDefault();
+      console.warn('[security] navigazione bloccata fuori da PI_URL:', url);
+    }
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
   mainWindow.loadURL(PI_URL);
 
@@ -291,17 +307,29 @@ ipcMain.handle('pick-folder', async () => {
   return result.filePaths[0];
 });
 
+// Validazione path (issue #8): la cartella sessioni DEVE stare dentro la home
+// utente. Impedisce scrittura file arbitraria (path traversal, dir di sistema)
+// anche nel caso un canale IPC venisse invocato in modo inatteso.
+function resolveAllowedSessionsDir(dir) {
+  if (!dir || typeof dir !== 'string') return null;
+  const resolved = path.resolve(dir);
+  const home = path.resolve(os.homedir());
+  if (resolved === home || resolved.startsWith(home + path.sep)) return resolved;
+  return null;
+}
+
 // Salva la cartella scelta e riavvia il receiver
 ipcMain.handle('set-sessions-dir', async (_, newDir) => {
-  if (!newDir || typeof newDir !== 'string') return { ok: false };
+  const dir = resolveAllowedSessionsDir(newDir);
+  if (!dir) return { ok: false, error: 'Cartella non consentita: deve essere dentro la cartella utente.' };
   try {
-    fs.mkdirSync(newDir, { recursive: true });
-    config.sessionsDir = newDir;
+    fs.mkdirSync(dir, { recursive: true });
+    config.sessionsDir = dir;
     saveConfig(config);
     restartReceiver();
     // Notifica la finestra principale del cambiamento
-    if (mainWindow) mainWindow.webContents.send('sessions-dir-changed', newDir);
-    return { ok: true, dir: newDir };
+    if (mainWindow) mainWindow.webContents.send('sessions-dir-changed', dir);
+    return { ok: true, dir };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -326,7 +354,32 @@ ipcMain.on('open-sessions-folder', () => {
 ipcMain.handle('get-version', () => app.getVersion());
 
 // ─── App lifecycle ────────────────────────────────────────────────────────────
+// ─── CSP per il contenuto remoto del Pi (issue #8) ────────────────────────────
+// Limita il contenuto servito dal Pi a same-origin + origine Pi: consente la
+// dashboard (inline + WS verso il Pi) ma blocca connessioni/risorse verso host
+// esterni (anti-esfiltrazione). Le finestre locali (file://) non sono toccate.
+function installRemoteCSP() {
+  session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
+    if (!details.url.startsWith(PI_ORIGIN)) return cb({ responseHeaders: details.responseHeaders });
+    const csp =
+      `default-src 'self' ${PI_ORIGIN} ws://${PI_HOST}; ` +
+      `script-src 'self' ${PI_ORIGIN} 'unsafe-inline' 'unsafe-eval'; ` +
+      `style-src 'self' ${PI_ORIGIN} 'unsafe-inline'; ` +
+      `img-src 'self' ${PI_ORIGIN} data: blob:; ` +
+      `font-src 'self' ${PI_ORIGIN} data:; ` +
+      `connect-src 'self' ${PI_ORIGIN} ws://${PI_HOST}`;
+    const headers = { ...details.responseHeaders };
+    // Rimuovi eventuali CSP in arrivo (case-insensitive) e imponi la nostra
+    for (const k of Object.keys(headers)) {
+      if (k.toLowerCase() === 'content-security-policy') delete headers[k];
+    }
+    headers['Content-Security-Policy'] = [csp];
+    cb({ responseHeaders: headers });
+  });
+}
+
 app.whenReady().then(() => {
+  installRemoteCSP();
   startReceiver();
   createLoadingWindow();
   globalShortcut.register('Escape', handleEscQuit);

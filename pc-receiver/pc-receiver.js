@@ -43,6 +43,11 @@ function httpGet(url) {
 const PORT        = 8081;
 const PI_IP       = '192.168.7.1';   // IP Pi su USB ethernet
 const PI_PORT     = 8080;
+// Sicurezza (issue #8, CONTRACT §5): il receiver ascolta SOLO sull'interfaccia
+// USB del PC (192.168.7.2), non su 0.0.0.0 — così /sessions, /sessions/:id e
+// POST /receive non sono raggiungibili da altri host della LAN. Override via env
+// per sviluppo/test (es. 127.0.0.1).
+const BIND_HOST   = process.env.AERODRAG_BIND_HOST || '192.168.7.2';
 
 const SESSIONS_DIR = process.env.AERODRAG_SESSIONS_DIR
   || path.join(os.homedir(), 'Documents', 'AeroDrag', 'sessions');
@@ -50,7 +55,9 @@ if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true }
 
 // ─── Server HTTP (riceve dal Pi) ──────────────────────────────────────────────
 const server = http.createServer((req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS wildcard rimosso (issue #8): nessun consumer cross-origin legittimo;
+  // il Pi fa POST server-to-server (no preflight) e gli endpoint locali non
+  // devono essere leggibili da pagine web di altre origini.
 
   // Ping — risponde al probe del Pi
   if (req.url === '/ping') {
@@ -171,11 +178,11 @@ async function pullMissingSessions() {
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
-server.listen(PORT, '0.0.0.0', async () => {
+server.listen(PORT, BIND_HOST, async () => {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('  AeroDrag PC Receiver v2');
   console.log(`  Salva in: ${SESSIONS_DIR}`);
-  console.log(`  In ascolto su porta ${PORT}`);
+  console.log(`  In ascolto su ${BIND_HOST}:${PORT}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   // Scarica subito le sessioni mancanti se il Pi è già connesso
@@ -190,6 +197,10 @@ server.on('error', err => {
   if (err.code === 'EADDRINUSE') {
     console.log(`[rx] Porta ${PORT} già occupata — receiver già attivo, esco`);
     process.exit(0);   // Fix R4: termina il processo per evitare loop sync inutile
+  } else if (err.code === 'EADDRNOTAVAIL') {
+    console.error(`[rx] Impossibile bindare ${BIND_HOST}:${PORT} — interfaccia non disponibile.`);
+    console.error('[rx] Collega il cavo USB al Pi, oppure imposta AERODRAG_BIND_HOST (es. 127.0.0.1).');
+    process.exit(1);
   } else {
     console.error('[rx] Errore:', err.message);
     process.exit(1);
