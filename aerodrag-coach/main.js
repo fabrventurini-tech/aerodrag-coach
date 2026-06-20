@@ -4,7 +4,7 @@
  * Supporta selezione cartella di destinazione sessioni tramite dialog nativo.
  */
 
-const { app, BrowserWindow, globalShortcut, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, dialog, shell, Menu } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
@@ -16,6 +16,11 @@ const RECEIVER_JS = app.isPackaged
   ? path.join(process.resourcesPath, 'pc-receiver', 'pc-receiver.js')
   : path.join(__dirname, '..', 'pc-receiver', 'pc-receiver.js');
 const CONFIG_FILE = path.join(app.getPath('userData'), 'aerodrag-config.json');
+
+// Fix 15: disaccoppia timeout del probe (< intervallo, con margine) così un Pi
+// lento ha tempo di rispondere prima del ciclo successivo.
+const PROBE_INTERVAL_MS = 2500;
+const PROBE_TIMEOUT_MS  = 1500;
 
 // ─── Configurazione persistente ───────────────────────────────────────────────
 // Salvata in: %APPDATA%/AeroDrag Coach/aerodrag-config.json (Windows)
@@ -50,6 +55,12 @@ let receiverProc = null;
 let piAvailable  = false;
 let probeTimer   = null;
 let isRestarting = false;   // guard: prevents exit handler from re-spawning during restart
+// Fix 4: backoff su crash ripetuti del receiver (evita restart all'infinito).
+let crashCount   = 0;
+let crashWindowStart = 0;
+const RESTART_BASE_MS  = 1500;   // ≥1.5s: lascia liberare la porta 8081
+const RESTART_MAX_MS   = 30000;
+const CRASH_RESET_MS   = 60000;  // reset del contatore dopo 60s di stabilità
 
 // ─── Avvia pc-receiver con la cartella configurata ────────────────────────────
 function startReceiver() {
@@ -58,8 +69,16 @@ function startReceiver() {
     return;
   }
 
-  // Assicurati che la cartella sessioni esista
-  try { fs.mkdirSync(config.sessionsDir, { recursive: true }); } catch {}
+  // Assicurati che la cartella sessioni esista. Fix 12: logga l'errore e
+  // ripiega sulla cartella predefinita invece di ingoiarlo silenziosamente.
+  try {
+    fs.mkdirSync(config.sessionsDir, { recursive: true });
+  } catch (e) {
+    console.error(`[app] Impossibile creare ${config.sessionsDir}: ${e.message} — fallback a default`);
+    config.sessionsDir = DEFAULT_SESSIONS_DIR;
+    try { fs.mkdirSync(DEFAULT_SESSIONS_DIR, { recursive: true }); }
+    catch (e2) { console.error(`[app] Anche il fallback è fallito: ${e2.message}`); }
+  }
 
   const nodeExec = process.platform === 'win32' ? 'node.exe' : 'node';
 
@@ -73,36 +92,58 @@ function startReceiver() {
     },
   });
 
-  receiverProc.stdout.on('data', d => console.log('[receiver]', d.toString().trim()));
-  receiverProc.stderr.on('data', d => console.error('[receiver]', d.toString().trim()));
-  receiverProc.on('exit', (code) => {
-    if (code !== 0 && !app.isQuitting && !isRestarting) {
-      console.log('[receiver] Riavvio tra 3s...');
-      setTimeout(startReceiver, 3000);
+  const spawned = receiverProc;
+  spawned.stdout.on('data', d => console.log('[receiver]', d.toString().trim()));
+  spawned.stderr.on('data', d => console.error('[receiver]', d.toString().trim()));
+  spawned.on('exit', (code) => {
+    if (receiverProc === spawned) receiverProc = null;
+    if (code === 0 || app.isQuitting || isRestarting) return;
+
+    // Fix 4: backoff esponenziale su crash ripetuti per non riavviare all'infinito.
+    const now = Date.now();
+    if (now - crashWindowStart > CRASH_RESET_MS) { crashWindowStart = now; crashCount = 0; }
+    crashCount++;
+    if (crashCount > 5) {
+      console.error('[receiver] Troppi crash ravvicinati — riavvio sospeso.');
+      return;
     }
+    const delay = Math.min(RESTART_BASE_MS * 2 ** (crashCount - 1), RESTART_MAX_MS);
+    console.log(`[receiver] Exit code ${code} — riavvio tra ${delay}ms (tentativo ${crashCount})`);
+    setTimeout(() => { if (!app.isQuitting && !isRestarting) startReceiver(); }, delay);
   });
 
   console.log(`[app] Receiver avviato — sessioni in: ${config.sessionsDir}`);
 }
 
 function restartReceiver() {
+  // Fix 4: attendi l'evento 'exit' del vecchio processo PRIMA di rilanciare,
+  // altrimenti la porta 8081 può essere ancora occupata (EADDRINUSE).
   isRestarting = true;
-  if (receiverProc) {
-    receiverProc.kill();
-    receiverProc = null;
-  }
-  setTimeout(() => {
+  // Restart manuale (cambio cartella): azzera il backoff dei crash.
+  crashCount = 0;
+  const launch = () => {
     isRestarting = false;
     startReceiver();
-  }, 500);
+  };
+  if (receiverProc) {
+    const old = receiverProc;
+    receiverProc = null;
+    old.once('exit', () => {
+      // ≥1.5s dopo l'uscita: dà tempo al SO di liberare la porta.
+      setTimeout(launch, RESTART_BASE_MS);
+    });
+    old.kill();
+  } else {
+    setTimeout(launch, RESTART_BASE_MS);
+  }
 }
 
 // ─── Probe Pi ─────────────────────────────────────────────────────────────────
 function probePi(callback) {
   const req = http.request({
     hostname: '192.168.7.1', port: 8080, path: '/status',
-    method: 'GET', timeout: 2000,
-  }, res => { piAvailable = (res.statusCode === 200); callback(piAvailable); });
+    method: 'GET', timeout: PROBE_TIMEOUT_MS,
+  }, res => { piAvailable = (res.statusCode === 200); res.resume(); callback(piAvailable); });
   req.on('error', () => { piAvailable = false; callback(false); });
   req.on('timeout', () => { req.destroy(); piAvailable = false; callback(false); });
   req.end();
@@ -135,21 +176,32 @@ function createMainWindow() {
     backgroundColor: '#07090f', show: false,
     webPreferences: {
       nodeIntegration: false, contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      // Fix 5: la finestra che carica il contenuto REMOTO del Pi usa un preload
+      // MINIMALE (nessun IPC privilegiato esposto). Il preload completo è
+      // riservato agli HTML LOCALI (loading/settings).
+      preload: path.join(__dirname, 'preload-remote.js'),
     },
     icon: path.join(__dirname, 'assets', 'icon.png'),
   });
 
   mainWindow.loadURL(PI_URL);
 
-  mainWindow.once('ready-to-show', () => {
+  // Fix 2: usa did-finish-load (ricorrente) invece di ready-to-show (one-shot)
+  // così anche un loadURL di retry dopo un fail-load ri-mostra la finestra.
+  mainWindow.webContents.on('did-finish-load', () => {
     if (loadingWin) { loadingWin.close(); loadingWin = null; }
     mainWindow.show();
     mainWindow.focus();
   });
 
-  mainWindow.webContents.on('did-fail-load', () => {
-    if (mainWindow) mainWindow.close();
+  // Fix 2: NON chiudere/ricreare mainWindow su fail-load (innescava un ciclo
+  // close/open con doppia finestra di loading). Tieni la STESSA mainWindow
+  // nascosta, mostra il loader (solo se non esiste già) e lascia che lo
+  // scheduleProbe ritenti loadURL sulla finestra esistente.
+  mainWindow.webContents.on('did-fail-load', (_e, errorCode) => {
+    // -3 = ERR_ABORTED, capita su navigazioni sovrapposte: ignora.
+    if (errorCode === -3) return;
+    if (mainWindow && mainWindow.isVisible()) mainWindow.hide();
     if (!loadingWin) createLoadingWindow();
     scheduleProbe();
   });
@@ -187,9 +239,14 @@ function scheduleProbe() {
           loadingWin.webContents.send('pi-found');
           setTimeout(() => {
             if (loadingWin) { loadingWin.close(); loadingWin = null; }
-            createMainWindow();
+            // Fix 2: se mainWindow esiste già (fail-load precedente), ricarica
+            // sulla STESSA finestra invece di crearne una nuova.
+            if (mainWindow) mainWindow.loadURL(PI_URL);
+            else createMainWindow();
           }, 800);
-        } else if (!mainWindow) {
+        } else if (mainWindow) {
+          mainWindow.loadURL(PI_URL);
+        } else {
           createMainWindow();
         }
       } else {
@@ -197,67 +254,36 @@ function scheduleProbe() {
         scheduleProbe();
       }
     });
-  }, 2500);
+  }, PROBE_INTERVAL_MS);
 }
 
 // ─── ESC: conferma uscita ─────────────────────────────────────────────────────
+// Fix 8: usa un dialog NATIVO Electron invece di iniettare un overlay nel DOM
+// remoto del Pi via executeJavaScript + polling. Un errore d'iniezione non deve
+// più causare app.quit() senza conferma.
+let quitDialogOpen = false;
 function handleEscQuit() {
   const win = mainWindow || loadingWin;
-  if (!win) { app.quit(); return; }
+  if (!win) { app.isQuitting = true; app.quit(); return; }
+  if (quitDialogOpen) return;   // evita dialog multipli su ESC ripetuti
 
-  win.webContents.executeJavaScript(`
-    (function() {
-      const old = document.getElementById('_aerodrag_quit_overlay');
-      if (old) { old.remove(); return false; }
-      const ov = document.createElement('div');
-      ov.id = '_aerodrag_quit_overlay';
-      ov.style.cssText = \`position:fixed;inset:0;background:rgba(7,9,15,.85);
-        display:flex;align-items:center;justify-content:center;
-        z-index:99999;backdrop-filter:blur(8px);\`;
-      ov.innerHTML = \`
-        <div style="background:#0f1420;border:1px solid rgba(232,58,80,.4);
-                    border-radius:14px;padding:32px 40px;text-align:center;
-                    box-shadow:0 20px 60px rgba(0,0,0,.6);max-width:360px">
-          <div style="font-size:28px;margin-bottom:12px">⬛</div>
-          <div style="font-size:16px;font-weight:700;color:#dde8f5;margin-bottom:8px">
-            Uscire da AeroDrag Coach?</div>
-          <div style="font-size:12px;color:#4a5a7a;margin-bottom:24px">
-            I dati della sessione corrente sono al sicuro sul Pi e sul PC.</div>
-          <div style="display:flex;gap:12px;justify-content:center">
-            <button id="_cancel_quit"
-              style="padding:10px 24px;border-radius:8px;border:1px solid rgba(100,140,200,.3);
-                     background:transparent;color:#7a90b8;cursor:pointer;font-family:inherit;font-size:13px">
-              Annulla (ESC)</button>
-            <button id="_confirm_quit"
-              style="padding:10px 24px;border-radius:8px;border:1px solid rgba(232,58,80,.5);
-                     background:rgba(232,58,80,.15);color:#f24560;cursor:pointer;
-                     font-family:inherit;font-size:13px;font-weight:600">
-              Esci</button>
-          </div>
-        </div>\`;
-      document.body.appendChild(ov);
-      document.getElementById('_confirm_quit').onclick = () => { window._aerodragQuitConfirmed = true; ov.remove(); };
-      document.getElementById('_cancel_quit').onclick  = () => ov.remove();
-      ov.onclick = e => { if(e.target===ov) ov.remove(); };
-      const onKey = e => { if(e.key==='Escape') { ov.remove(); document.removeEventListener('keydown',onKey); } };
-      document.addEventListener('keydown', onKey);
-      return true;
-    })()
-  `).then(shown => {
-    if (!shown) return;
-    let checks = 0;
-    const poll = setInterval(() => {
-      if (++checks > 60) { clearInterval(poll); return; }
-      win.webContents.executeJavaScript('window._aerodragQuitConfirmed||false').then(confirmed => {
-        if (confirmed) {
-          clearInterval(poll);
-          win.webContents.executeJavaScript('window._aerodragQuitConfirmed=false');
-          app.isQuitting = true;
-          app.quit();
-        }
-      }).catch(() => clearInterval(poll));
-    }, 200);
-  }).catch(() => app.quit());
+  quitDialogOpen = true;
+  dialog.showMessageBox(win, {
+    type: 'question',
+    buttons: ['Annulla', 'Esci'],
+    defaultId: 0,
+    cancelId: 0,
+    title: 'AeroDrag Coach',
+    message: 'Uscire da AeroDrag Coach?',
+    detail: 'I dati della sessione corrente sono al sicuro sul Pi e sul PC.',
+    noLink: true,
+  }).then(({ response }) => {
+    quitDialogOpen = false;
+    if (response === 1) {
+      app.isQuitting = true;
+      app.quit();
+    }
+  }).catch(() => { quitDialogOpen = false; });
 }
 
 // ─── IPC handlers ─────────────────────────────────────────────────────────────
@@ -319,21 +345,55 @@ ipcMain.on('open-sessions-folder', () => {
 // Versione app — funziona sia in dev (npm start) sia packaged (binario)
 ipcMain.handle('get-version', () => app.getVersion());
 
+// ─── Menu applicazione ────────────────────────────────────────────────────────
+// Fix 3: su macOS l'app frameless restava viva senza un modo nativo di uscire.
+// Registra un menu con ruolo `quit` (acceleratore ⌘Q) che imposta isQuitting.
+function buildAppMenu() {
+  const quitItem = {
+    label: 'Esci da AeroDrag Coach',
+    accelerator: 'CmdOrCtrl+Q',
+    click: () => { app.isQuitting = true; app.quit(); },
+  };
+  const template = [];
+  if (process.platform === 'darwin') {
+    template.push({
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { type: 'separator' },
+        quitItem,
+      ],
+    });
+  } else {
+    template.push({ label: 'File', submenu: [quitItem] });
+  }
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  buildAppMenu();
   startReceiver();
   createLoadingWindow();
   globalShortcut.register('Escape', handleEscQuit);
   scheduleProbe();
 
   app.on('activate', () => {
+    // Fix 3: non ricreare finestre mentre l'app sta uscendo.
+    if (app.isQuitting) return;
     if (!mainWindow && !loadingWin) createLoadingWindow();
   });
 });
 
+// Fix 3: assicura la terminazione del receiver alla chiusura definitiva.
+app.on('before-quit', () => { app.isQuitting = true; });
+
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
-  if (receiverProc) receiverProc.kill();
+  if (receiverProc) { receiverProc.kill(); receiverProc = null; }
   clearTimeout(probeTimer);
 });
 

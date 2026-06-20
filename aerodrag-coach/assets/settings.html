@@ -138,6 +138,8 @@ async function init() {
   const cfg = await window.aerodrag.getConfig();
   document.getElementById('dir-display').textContent = cfg.sessionsDir;
   document.getElementById('app-version').textContent = 'v' + (await window.aerodrag.version());
+  // Fix 13: popola la versione di Electron (esposta dal preload).
+  document.getElementById('electron-ver').textContent = window.aerodrag.electronVersion || '—';
 }
 
 async function pickFolder() {
@@ -167,6 +169,9 @@ function openFolder() {
 function showStatus(type, msg) {
   const el = document.getElementById('status');
   el.textContent = msg;
+  // Fix 13: reimposta display inline così il box riappare dopo un precedente
+  // hide (lo style.display='none' inline vinceva sulla classe .status.ok/.err).
+  el.style.display = '';
   el.className = 'status ' + type;
   setTimeout(() => { el.style.display = 'none'; }, 4000);
 }

@@ -1,0 +1,2 @@
+# Fix 10: i file batch Windows devono mantenere line ending CRLF.
+*.bat text eol=crlf

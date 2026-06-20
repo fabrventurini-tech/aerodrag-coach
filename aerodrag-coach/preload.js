@@ -20,4 +20,7 @@ contextBridge.exposeInMainWorld('aerodrag', {
   // Versione: legge da main.js via IPC (app.getVersion()) — funziona anche
   // nelle build packaged dove process.env.npm_package_version è undefined
   version: () => ipcRenderer.invoke('get-version'),
+
+  // Fix 13: espone la versione di Electron per popolare #electron-ver in settings.
+  electronVersion: process.versions.electron,
 });

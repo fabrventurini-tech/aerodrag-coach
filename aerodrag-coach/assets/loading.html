@@ -23,7 +23,8 @@
   @keyframes spin{to{transform:rotate(360deg)}}
 
   .status{font-size:12px;color:#7a90b8;margin-bottom:8px}
-  .hint{font-size:11px;color:#2a3a5a;line-height:1.7}
+  /* Fix 14: white-space:pre-line fa rispettare i \n impostati via textContent */
+  .hint{font-size:11px;color:#2a3a5a;line-height:1.7;white-space:pre-line}
 
   .dot{display:inline-block;width:7px;height:7px;border-radius:50%;
        background:#00c896;margin:0 2px;animation:pulse 1.4s ease-in-out infinite}
