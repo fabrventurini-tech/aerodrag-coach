@@ -94,6 +94,8 @@ Ancorato a **`aerodrag-firmware/docs/CONTRACT.md` v0.2.2** (fonte di verità uni
 ## Note
 
 - L'app si connette automaticamente al Pi su 192.168.7.1:8080
-- Il PC Receiver (porta 8081) si avvia in background senza aprire finestre
+- Il PC Receiver ascolta su 192.168.7.2:8081 (interfaccia USB del PC, CONTRACT §5);
+  si avvia in background senza aprire finestre. Override per dev/test con
+  `AERODRAG_BIND_HOST` (es. `127.0.0.1`)
 - Le sessioni vengono salvate in `Documents/AeroDrag/sessions/`
 - Se il Pi non è collegato, la schermata di attesa riprova ogni 2.5 secondi

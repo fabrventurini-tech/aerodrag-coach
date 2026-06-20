@@ -10,7 +10,7 @@
  *   valida il filename a suffisso deviceId obbligatorio (§5 v0.1.2).
  */
 
-const { app, BrowserWindow, globalShortcut, ipcMain, dialog, shell, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, session } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
@@ -67,8 +67,15 @@ function startReceiver() {
     return;
   }
 
-  // Assicurati che la cartella sessioni esista
-  try { fs.mkdirSync(config.sessionsDir, { recursive: true }); } catch {}
+  // Assicurati che la cartella sessioni esista; se fallisce, log + fallback alla
+  // cartella predefinita (issue #8, BASSO).
+  try {
+    fs.mkdirSync(config.sessionsDir, { recursive: true });
+  } catch (e) {
+    console.error(`[app] Impossibile creare ${config.sessionsDir}: ${e.message} — uso ${DEFAULT_SESSIONS_DIR}`);
+    config.sessionsDir = DEFAULT_SESSIONS_DIR;
+    try { fs.mkdirSync(config.sessionsDir, { recursive: true }); } catch {}
+  }
 
   const nodeExec = process.platform === 'win32' ? 'node.exe' : 'node';
 
@@ -95,15 +102,15 @@ function startReceiver() {
 }
 
 function restartReceiver() {
+  // Avvia il nuovo receiver SOLO dopo che il vecchio è davvero uscito (issue #8):
+  // un timeout fisso poteva lasciare la porta 8081 occupata → EADDRINUSE →
+  // exit(0) → zero receiver. Niente più race.
+  if (!receiverProc) { startReceiver(); return; }
   isRestarting = true;
-  if (receiverProc) {
-    receiverProc.kill();
-    receiverProc = null;
-  }
-  setTimeout(() => {
-    isRestarting = false;
-    startReceiver();
-  }, 500);
+  const old = receiverProc;
+  receiverProc = null;
+  old.once('exit', () => { isRestarting = false; startReceiver(); });
+  old.kill();
 }
 
 // ─── Probe Pi ─────────────────────────────────────────────────────────────────
@@ -129,6 +136,7 @@ function createLoadingWindow() {
     icon: path.join(__dirname, 'assets', 'icon.png'),
   });
   loadingWin.loadFile(path.join(__dirname, 'assets', 'loading.html'));
+  attachEscHandler(loadingWin);
 }
 
 // ─── Finestra principale ──────────────────────────────────────────────────────
@@ -161,6 +169,7 @@ function createMainWindow() {
     }
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  attachEscHandler(mainWindow);
 
   mainWindow.loadURL(PI_URL);
 
@@ -196,6 +205,7 @@ function createSettingsWindow() {
   });
 
   settingsWin.loadFile(path.join(__dirname, 'assets', 'settings.html'));
+  attachEscHandler(settingsWin);
   settingsWin.on('closed', () => { settingsWin = null; });
 }
 
@@ -222,64 +232,39 @@ function scheduleProbe() {
   }, 2500);
 }
 
-// ─── ESC: conferma uscita ─────────────────────────────────────────────────────
-function handleEscQuit() {
-  const win = mainWindow || loadingWin;
-  if (!win) { app.quit(); return; }
+// ─── ESC: conferma uscita (issue #8) ──────────────────────────────────────────
+// Conferma in dialog NATIVO locale (non più iniettata nel DOM remoto del Pi, che
+// poteva forzarla/impedirla). ESC agganciato a `before-input-event` per-finestra
+// (solo a finestra a fuoco), non più via globalShortcut globale di sistema.
+let quitDialogOpen = false;
+function confirmQuit() {
+  if (quitDialogOpen) return;
+  const win = mainWindow || settingsWin || loadingWin || null;
+  quitDialogOpen = true;
+  dialog.showMessageBox(win, {
+    type:      'warning',
+    buttons:   ['Annulla', 'Esci'],
+    defaultId: 0,
+    cancelId:  0,
+    noLink:    true,
+    title:     'AeroDrag Coach',
+    message:   'Uscire da AeroDrag Coach?',
+    detail:    'I dati della sessione corrente sono al sicuro sul Pi e sul PC.',
+  }).then(({ response }) => {
+    quitDialogOpen = false;
+    if (response === 1) { app.isQuitting = true; app.quit(); }
+  }).catch(() => { quitDialogOpen = false; });
+}
 
-  win.webContents.executeJavaScript(`
-    (function() {
-      const old = document.getElementById('_aerodrag_quit_overlay');
-      if (old) { old.remove(); return false; }
-      const ov = document.createElement('div');
-      ov.id = '_aerodrag_quit_overlay';
-      ov.style.cssText = \`position:fixed;inset:0;background:rgba(7,9,15,.85);
-        display:flex;align-items:center;justify-content:center;
-        z-index:99999;backdrop-filter:blur(8px);\`;
-      ov.innerHTML = \`
-        <div style="background:#0f1420;border:1px solid rgba(232,58,80,.4);
-                    border-radius:14px;padding:32px 40px;text-align:center;
-                    box-shadow:0 20px 60px rgba(0,0,0,.6);max-width:360px">
-          <div style="font-size:28px;margin-bottom:12px">⬛</div>
-          <div style="font-size:16px;font-weight:700;color:#dde8f5;margin-bottom:8px">
-            Uscire da AeroDrag Coach?</div>
-          <div style="font-size:12px;color:#4a5a7a;margin-bottom:24px">
-            I dati della sessione corrente sono al sicuro sul Pi e sul PC.</div>
-          <div style="display:flex;gap:12px;justify-content:center">
-            <button id="_cancel_quit"
-              style="padding:10px 24px;border-radius:8px;border:1px solid rgba(100,140,200,.3);
-                     background:transparent;color:#7a90b8;cursor:pointer;font-family:inherit;font-size:13px">
-              Annulla (ESC)</button>
-            <button id="_confirm_quit"
-              style="padding:10px 24px;border-radius:8px;border:1px solid rgba(232,58,80,.5);
-                     background:rgba(232,58,80,.15);color:#f24560;cursor:pointer;
-                     font-family:inherit;font-size:13px;font-weight:600">
-              Esci</button>
-          </div>
-        </div>\`;
-      document.body.appendChild(ov);
-      document.getElementById('_confirm_quit').onclick = () => { window._aerodragQuitConfirmed = true; ov.remove(); };
-      document.getElementById('_cancel_quit').onclick  = () => ov.remove();
-      ov.onclick = e => { if(e.target===ov) ov.remove(); };
-      const onKey = e => { if(e.key==='Escape') { ov.remove(); document.removeEventListener('keydown',onKey); } };
-      document.addEventListener('keydown', onKey);
-      return true;
-    })()
-  `).then(shown => {
-    if (!shown) return;
-    let checks = 0;
-    const poll = setInterval(() => {
-      if (++checks > 60) { clearInterval(poll); return; }
-      win.webContents.executeJavaScript('window._aerodragQuitConfirmed||false').then(confirmed => {
-        if (confirmed) {
-          clearInterval(poll);
-          win.webContents.executeJavaScript('window._aerodragQuitConfirmed=false');
-          app.isQuitting = true;
-          app.quit();
-        }
-      }).catch(() => clearInterval(poll));
-    }, 200);
-  }).catch(() => app.quit());
+// Intercetta ESC PRIMA che arrivi alla pagina (anche remota); vale solo quando
+// la finestra è a fuoco. Sostituisce globalShortcut('Escape').
+function attachEscHandler(win) {
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type === 'keyDown' && input.key === 'Escape') {
+      e.preventDefault();
+      confirmQuit();
+    }
+  });
 }
 
 // ─── IPC handlers ─────────────────────────────────────────────────────────────
@@ -382,7 +367,6 @@ app.whenReady().then(() => {
   installRemoteCSP();
   startReceiver();
   createLoadingWindow();
-  globalShortcut.register('Escape', handleEscQuit);
   scheduleProbe();
 
   app.on('activate', () => {
@@ -391,7 +375,6 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
   if (receiverProc) receiverProc.kill();
   clearTimeout(probeTimer);
 });

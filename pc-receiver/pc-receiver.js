@@ -32,7 +32,9 @@ function httpGet(url) {
       let body = '';
       res.on('data', c => body += c);
       res.on('end', () => resolve({ ok: res.statusCode < 400, status: res.statusCode,
-        json: () => Promise.resolve(JSON.parse(body)), text: () => Promise.resolve(body) }));
+        json: () => { try { return Promise.resolve(JSON.parse(body)); }
+                      catch { return Promise.reject(new Error('risposta JSON non valida')); } },
+        text: () => Promise.resolve(body) }));
     });
     req.on('error', reject);
     req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
@@ -48,6 +50,7 @@ const PI_PORT     = 8080;
 // POST /receive non sono raggiungibili da altri host della LAN. Override via env
 // per sviluppo/test (es. 127.0.0.1).
 const BIND_HOST   = process.env.AERODRAG_BIND_HOST || '192.168.7.2';
+const MAX_BODY    = 16 * 1024 * 1024;   // 16 MB: tetto di sicurezza su /receive (anti-DoS memoria)
 
 const SESSIONS_DIR = process.env.AERODRAG_SESSIONS_DIR
   || path.join(os.homedir(), 'Documents', 'AeroDrag', 'sessions');
@@ -64,6 +67,11 @@ const server = http.createServer((req, res) => {
     res.writeHead(200); return res.end('pong');
   }
 
+  // Probe HEAD (la dashboard del Pi lo usa su /sessions): 200 senza body
+  if (req.method === 'HEAD' && (req.url === '/ping' || req.url.startsWith('/sessions'))) {
+    res.writeHead(200); return res.end();
+  }
+
   // POST /receive?filename=... — riceve una sessione dal Pi
   if (req.method === 'POST' && req.url.startsWith('/receive')) {
     const filename = new URL(req.url, 'http://x').searchParams.get('filename') || '';
@@ -74,15 +82,32 @@ const server = http.createServer((req, res) => {
       res.writeHead(400); return res.end('Invalid');
     }
     let body = '';
-    req.on('data', c => body += c);
+    let aborted = false;
+    req.on('data', c => {
+      if (aborted) return;
+      body += c;
+      if (body.length > MAX_BODY) {            // anti-DoS: rifiuta payload enormi
+        aborted = true;
+        res.writeHead(413); res.end('Payload too large');
+        req.destroy();
+      }
+    });
     req.on('end', () => {
+      if (aborted) return;
+      // Valida lo schema §5 PRIMA di scrivere su disco (niente più write verbatim)
+      let d;
+      try { d = JSON.parse(body); }
+      catch { res.writeHead(400); return res.end('Invalid JSON'); }
+      if (!d || typeof d !== 'object'
+          || typeof d.ts !== 'number'
+          || typeof d.deviceId !== 'string'
+          || !Array.isArray(d.laps)) {
+        res.writeHead(400); return res.end('Invalid schema');
+      }
       fs.writeFile(path.join(SESSIONS_DIR, filename), body, err => {
         if (err) { res.writeHead(500); return res.end('Error'); }
-        try {
-          const d = JSON.parse(body);
-          const date = new Date(d.ts).toLocaleString('it-IT');
-          console.log(`[rx] ✓ ${filename} — ${d.laps?.length||0} lap (${date})`);
-        } catch {}
+        const date = new Date(d.ts).toLocaleString('it-IT');
+        console.log(`[rx] ✓ ${filename} — ${d.laps.length} lap (${date})`);
         res.writeHead(200); res.end('OK');
       });
     });
@@ -171,9 +196,9 @@ async function pullMissingSessions() {
     }
     console.log(`[sync] Sincronizzazione completata — ${missing.length} sessioni scaricate`);
   } catch (e) {
-    // Il Pi non è ancora connesso — riprova tra 30s
-    if (!e.message.includes('ECONNREFUSED') && !e.message.includes('fetch'))
-      console.warn('[sync] Errore:', e.message);
+    // Il Pi non è ancora connesso — caso atteso, resta silenzioso; logga il resto.
+    const quiet = ['ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'ETIMEDOUT', 'ECONNRESET'];
+    if (!quiet.includes(e.code)) console.warn('[sync] Errore:', e.message);
   }
 }
 
