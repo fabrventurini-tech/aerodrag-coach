@@ -163,7 +163,10 @@ function createMainWindow() {
   // Confina il contenuto remoto: niente navigazione fuori dall'origine del Pi,
   // niente apertura di nuove finestre (issue #8).
   mainWindow.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith(PI_ORIGIN + '/') && url !== PI_ORIGIN) {
+    // Confina alla sola origine del Pi: confronto robusto per origine (non prefisso).
+    let sameOrigin = false;
+    try { sameOrigin = new URL(url).origin === PI_ORIGIN; } catch { sameOrigin = false; }
+    if (!sameOrigin) {
       e.preventDefault();
       console.warn('[security] navigazione bloccata fuori da PI_URL:', url);
     }
