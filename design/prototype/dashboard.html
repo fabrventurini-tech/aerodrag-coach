@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<!--
+  PROTOTIPO STATICO (proposta redesign) — Dashboard live AeroDrag Coach.
+  Artefatto di PROPOSTA per aerodrag-pi/server/dashboard.html (NON implementato qui).
+  Dati finti, grafici SVG statici, nessuna dipendenza. Apri in un browser.
+  Mostra: ring-gauge CdA, card piu' ariose, gerarchia tipografica, stati colore.
+-->
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>AeroDrag Coach — Dashboard (prototipo redesign)</title>
+<style>
+  :root{
+    --bg:#07090f; --s1:#0f1420; --s2:#161d2e; --s3:#1e2840;
+    --teal:#00d9a3; --amber:#f5a623; --red:#ff4d6a; --blue:#4d9fff;
+    --purple:#9b7bff; --green:#22c55e;
+    --text:#dbe6f6; --dim:#8398bd; --muted:#46587c;
+    --border:rgba(120,160,220,.12);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden}
+  body{background:var(--bg);color:var(--text);font-size:12px;
+       font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif}
+  .mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace}
+  .root{display:grid;grid-template-rows:52px 40px 1fr;height:100vh}
+
+  /* TOPBAR */
+  .topbar{display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--s1);
+          border-bottom:1px solid var(--border)}
+  .logo{font-size:15px;font-weight:700;color:var(--teal);letter-spacing:-.01em}
+  .pill{font-size:10px;font-weight:600;padding:4px 11px;border-radius:999px;border:1px solid}
+  .pt{color:var(--teal);border-color:rgba(0,217,163,.3);background:rgba(0,217,163,.08)}
+  .pm{color:var(--muted);border-color:var(--border)}
+  .pr{color:var(--red);border-color:rgba(255,77,106,.3);background:rgba(255,77,106,.08);
+      display:inline-flex;align-items:center;gap:6px}
+  .recdot{width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink 1.2s infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+  .ctrls{display:flex;gap:8px;margin-left:14px}
+  .cbtn{font:inherit;font-size:11px;font-weight:700;letter-spacing:.03em;padding:7px 16px;
+        border-radius:10px;border:1px solid;cursor:pointer;background:transparent}
+  .c-start{color:var(--green);border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.08)}
+  .c-lap{color:var(--amber);border-color:rgba(245,166,35,.5);background:rgba(245,166,35,.1)}
+  .c-stop{color:var(--red);border-color:rgba(255,77,106,.45);background:rgba(255,77,106,.08)}
+  .clock{margin-left:auto;color:var(--dim);font-size:11px}
+
+  /* TABS */
+  .tabbar{display:flex;align-items:center;gap:4px;padding:0 16px;background:var(--s1);
+          border-bottom:1px solid var(--border)}
+  .tab{font:inherit;font-size:11px;color:var(--dim);background:none;border:none;cursor:pointer;
+       padding:8px 14px;border-radius:8px 8px 0 0;border-bottom:2px solid transparent}
+  .tab.on{color:var(--teal);border-bottom-color:var(--teal);background:rgba(0,217,163,.05)}
+
+  .body{display:grid;grid-template-columns:230px 1fr 250px;overflow:hidden}
+  .col{overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px}
+  .sl{background:var(--s1);border-right:1px solid var(--border)}
+  .sr{background:var(--s1);border-left:1px solid var(--border)}
+  .lbl{font-size:9px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+  .card{background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:14px;
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+
+  /* CdA RING GAUGE */
+  .gauge{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .gauge svg{transform:rotate(-90deg)}
+  .gauge .wrap{position:relative;width:150px;height:150px}
+  .gauge .read{position:absolute;inset:0;display:flex;flex-direction:column;
+       align-items:center;justify-content:center}
+  .gauge .val{font-size:34px;font-weight:700;letter-spacing:-1px;color:var(--teal);line-height:1}
+  .gauge .unit{font-size:10px;color:var(--dim);margin-top:3px}
+  .gauge .delta{font-size:11px;color:var(--green);margin-top:2px}
+
+  .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .mini{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:9px 11px}
+  .mini .k{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .mini .v{font-size:18px;font-weight:700;margin-top:2px}
+
+  .laplist .lap{display:grid;grid-template-columns:24px 1fr 44px 40px;gap:6px;align-items:center;
+       padding:8px 4px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+  .laplist .lap:last-child{border-bottom:none}
+  .laplist .lap.on{background:rgba(0,217,163,.06);border-radius:8px}
+  .chip{font-size:11px;font-weight:700}
+
+  /* CENTER */
+  .center{overflow-y:auto}
+  .strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:14px;
+         background:var(--s1);border-bottom:1px solid var(--border)}
+  .mc{background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:11px 12px}
+  .mc .k{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+  .mc .v{font-size:20px;font-weight:700;margin:3px 0;line-height:1}
+  .mc .s{display:flex;gap:8px;font-size:9px;color:var(--dim)}
+  .charts{padding:14px;display:flex;flex-direction:column;gap:14px}
+  .cc-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .cc-title{font-size:10px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+  .legend{display:flex;gap:12px;font-size:10px;color:var(--dim)}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+  /* RIGHT */
+  .srow{display:flex;justify-content:space-between;padding:7px 0;
+        border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+  .srow:last-child{border-bottom:none}
+  .srow .k{color:var(--dim)}.srow .v{font-weight:600}
+  .bar{height:6px;border-radius:3px;background:var(--s3);margin-top:5px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:3px}
+  .ins{font-size:11px;line-height:1.7;color:var(--dim)}
+  .ins b{color:var(--teal)}
+</style>
+</head>
+<body>
+<div class="root">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <span class="logo">◉ AeroDrag Coach</span>
+    <span class="pill pt">BLE ✓</span>
+    <span class="pill pt">ANT+ ✓</span>
+    <span class="pill pt">SPD ✓</span>
+    <span class="pill pr"><span class="recdot"></span>REC · 00:12:30</span>
+    <div class="ctrls">
+      <button class="cbtn c-start">▶ START</button>
+      <button class="cbtn c-lap">◎ LAP</button>
+      <button class="cbtn c-stop">⬛ STOP</button>
+    </div>
+    <span class="clock mono">14:32:07 · Mario Rossi</span>
+    <span class="pill pt" style="margin-left:10px">Pi ✓</span>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabbar">
+    <button class="tab on">Live</button>
+    <button class="tab">Confronto lap</button>
+    <button class="tab">Overlay sensori</button>
+    <button class="tab">Radar</button>
+    <button class="tab">Tabella completa</button>
+  </div>
+
+  <div class="body">
+
+    <!-- LEFT -->
+    <div class="col sl">
+      <div>
+        <div class="lbl">CdA Live · media 30s</div>
+        <div class="card gauge">
+          <div class="wrap">
+            <svg width="150" height="150" viewBox="0 0 150 150">
+              <circle cx="75" cy="75" r="64" fill="none" stroke="#1e2840" stroke-width="12"/>
+              <circle cx="75" cy="75" r="64" fill="none" stroke="url(#g)" stroke-width="12"
+                      stroke-linecap="round" stroke-dasharray="402"
+                      stroke-dashoffset="120"/>
+              <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#00d9a3"/><stop offset="1" stop-color="#4d9fff"/>
+              </linearGradient></defs>
+            </svg>
+            <div class="read">
+              <div class="val mono">0.214</div>
+              <div class="unit">m² CdA</div>
+              <div class="delta">▼ 0.006 vs avg</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mini-grid">
+        <div class="mini"><div class="k">Peak</div><div class="v mono" style="color:var(--red)">0.281</div></div>
+        <div class="mini"><div class="k">Best</div><div class="v mono" style="color:var(--teal)">0.208</div></div>
+        <div class="mini"><div class="k">Avg</div><div class="v mono" style="color:var(--amber)">0.231</div></div>
+        <div class="mini"><div class="k">Lap</div><div class="v mono" style="color:var(--purple)">3</div></div>
+      </div>
+
+      <div>
+        <div class="lbl">Tutti i lap</div>
+        <div class="card laplist" style="padding:6px 12px">
+          <div class="lap" style="color:var(--muted);font-size:9px;border-bottom-color:var(--border)">
+            <span>#</span><span>CdA</span><span>W</span><span>hr</span></div>
+          <div class="lap"><span class="chip" style="color:var(--teal)">1</span><span class="mono">0.229</span><span class="mono">231</span><span class="mono" style="color:var(--red)">148</span></div>
+          <div class="lap"><span class="chip" style="color:var(--amber)">2</span><span class="mono">0.236</span><span class="mono">224</span><span class="mono" style="color:var(--red)">151</span></div>
+          <div class="lap on"><span class="chip" style="color:var(--blue)">3 ▶</span><span class="mono">0.214</span><span class="mono">238</span><span class="mono" style="color:var(--red)">145</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="center">
+      <div class="strip">
+        <div class="mc"><div class="k">CdA</div><div class="v mono" style="color:var(--teal)">0.214</div><div class="s"><span style="color:var(--red)">↑0.281</span><span style="color:var(--amber)">~0.231</span></div></div>
+        <div class="mc"><div class="k">Velocità</div><div class="v mono" style="color:var(--teal)">38.6</div><div class="s"><span style="color:var(--red)">↑41.2</span><span style="color:var(--amber)">~37.9</span></div></div>
+        <div class="mc"><div class="k">Potenza</div><div class="v mono" style="color:var(--amber)">238<span style="font-size:11px"> W</span></div><div class="s"><span style="color:var(--red)">↑352</span><span style="color:var(--amber)">~241</span></div></div>
+        <div class="mc"><div class="k">P. Aero</div><div class="v mono" style="color:var(--red)">181<span style="font-size:11px"> W</span></div><div class="s"><span style="color:var(--muted)">76%</span></div></div>
+        <div class="mc"><div class="k">FC · Cad</div><div class="v mono" style="color:var(--red)">145</div><div class="s"><span style="color:var(--purple)">92 rpm</span></div></div>
+        <div class="mc"><div class="k">Vento · 🔋</div><div class="v mono" style="color:var(--blue)">1.8</div><div class="s"><span style="color:var(--muted)">85%</span><span>12.4 km</span></div></div>
+      </div>
+
+      <div class="charts">
+        <div class="card">
+          <div class="cc-hdr">
+            <span class="cc-title">CdA · Potenza · Velocità · FC — sessione live</span>
+            <div class="legend">
+              <span><i style="background:var(--teal)"></i>CdA</span>
+              <span><i style="background:var(--amber)"></i>W</span>
+              <span><i style="background:var(--blue)"></i>km/h</span>
+              <span><i style="background:var(--red)"></i>FC</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 600 150" width="100%" height="150" preserveAspectRatio="none">
+            <g stroke="rgba(120,160,220,.07)"><line x1="0" y1="38" x2="600" y2="38"/><line x1="0" y1="75" x2="600" y2="75"/><line x1="0" y1="112" x2="600" y2="112"/></g>
+            <polyline fill="none" stroke="#00d9a3" stroke-width="2.5" points="0,95 60,90 120,98 180,80 240,86 300,70 360,76 420,62 480,72 540,58 600,64"/>
+            <polyline fill="none" stroke="#f5a623" stroke-width="1.5" stroke-dasharray="4 3" points="0,70 60,66 120,74 180,60 240,68 300,55 360,64 420,52 480,60 540,48 600,54"/>
+            <polyline fill="none" stroke="#4d9fff" stroke-width="1.5" stroke-dasharray="2 4" points="0,110 60,104 120,108 180,100 240,106 300,96 360,102 420,92 480,98 540,90 600,94"/>
+            <polyline fill="none" stroke="#ff4d6a" stroke-width="1" stroke-dasharray="6 4" points="0,48 60,52 120,46 180,50 240,44 300,48 360,42 420,46 480,40 540,44 600,38"/>
+          </svg>
+        </div>
+        <div class="two">
+          <div class="card">
+            <div class="cc-hdr"><span class="cc-title">CdA medio per lap</span></div>
+            <svg viewBox="0 0 200 110" width="100%" height="110">
+              <rect x="22"  y="34" width="38" height="76" rx="4" fill="#00d9a399"/>
+              <rect x="82"  y="44" width="38" height="66" rx="4" fill="#f5a62399"/>
+              <rect x="142" y="20" width="38" height="90" rx="4" fill="#4d9fff99"/>
+              <text x="41"  y="104" fill="#46587c" font-size="9" text-anchor="middle">L1</text>
+              <text x="101" y="104" fill="#46587c" font-size="9" text-anchor="middle">L2</text>
+              <text x="161" y="104" fill="#46587c" font-size="9" text-anchor="middle">L3</text>
+            </svg>
+          </div>
+          <div class="card">
+            <div class="cc-hdr"><span class="cc-title">Potenza media per lap</span></div>
+            <svg viewBox="0 0 200 110" width="100%" height="110">
+              <rect x="22"  y="28" width="38" height="82" rx="4" fill="#00d9a399"/>
+              <rect x="82"  y="38" width="38" height="72" rx="4" fill="#f5a62399"/>
+              <rect x="142" y="22" width="38" height="88" rx="4" fill="#4d9fff99"/>
+              <text x="41"  y="104" fill="#46587c" font-size="9" text-anchor="middle">L1</text>
+              <text x="101" y="104" fill="#46587c" font-size="9" text-anchor="middle">L2</text>
+              <text x="161" y="104" fill="#46587c" font-size="9" text-anchor="middle">L3</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col sr">
+      <div>
+        <div class="lbl">Sessione</div>
+        <div class="card">
+          <div class="srow"><span class="k">CdA avg</span><span class="v mono">0.231</span></div>
+          <div class="srow"><span class="k">CdA best</span><span class="v mono" style="color:var(--teal)">0.208</span></div>
+          <div class="srow"><span class="k">Potenza avg</span><span class="v mono">241 W</span></div>
+          <div class="srow"><span class="k">FC avg</span><span class="v mono">148 bpm</span></div>
+          <div class="srow"><span class="k">Distanza</span><span class="v mono">12.4 km</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="lbl">Potenza breakdown</div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;font-size:11px"><span class="k" style="color:var(--dim)">Aerodinamica</span><span style="color:var(--red);font-weight:700">76%</span></div>
+          <div class="bar"><i style="width:76%;background:var(--red)"></i></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:10px"><span style="color:var(--dim)">Rolling</span><span style="color:var(--blue);font-weight:700">16%</span></div>
+          <div class="bar"><i style="width:16%;background:var(--blue)"></i></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:10px"><span style="color:var(--dim)">Gravità/altro</span><span style="color:var(--muted);font-weight:700">8%</span></div>
+          <div class="bar"><i style="width:8%;background:var(--muted)"></i></div>
+        </div>
+      </div>
+      <div>
+        <div class="lbl">Insight coach</div>
+        <div class="card ins">
+          <div>✦ <b>CdA eccellente</b> — lap 3 sotto 0.215, miglior media finora.</div>
+          <div style="margin-top:6px;color:var(--dim)">↗ Vento contrario 1.8 m/s — impatto contenuto.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

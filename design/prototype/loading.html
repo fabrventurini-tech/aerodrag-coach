@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<!--
+  PROTOTIPO STATICO (proposta redesign) — AeroDrag Coach · schermata Loading.
+  Autonomo: nessuna dipendenza, nessun window.aerodrag. Apri in un browser.
+  Quando approvato, lo stile viene portato in aerodrag-coach/assets/loading.html.
+-->
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>AeroDrag Coach — Loading (prototipo)</title>
+<style>
+  :root{
+    --bg:#07090f; --s1:#0f1420; --s2:#161d2e;
+    --teal:#00d9a3; --teal-dim:rgba(0,217,163,.14);
+    --text:#dbe6f6; --dim:#8398bd; --muted:#46587c;
+    --border:rgba(120,160,220,.12);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{background:
+        radial-gradient(900px 500px at 50% -10%, rgba(0,217,163,.08), transparent 60%),
+        var(--bg);
+       font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+       color:var(--text);display:flex;align-items:center;justify-content:center}
+  .mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace}
+
+  .card{position:relative;width:460px;padding:46px 48px 40px;text-align:center;
+        background:linear-gradient(180deg,rgba(22,29,46,.9),rgba(15,20,32,.92));
+        border:1px solid var(--border);border-radius:22px;
+        box-shadow:0 30px 90px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04)}
+
+  /* logo + orbit */
+  .orbit{position:relative;width:96px;height:96px;margin:0 auto 22px}
+  .orbit::before,.orbit::after{content:"";position:absolute;inset:0;border-radius:50%;
+        border:1px solid var(--border)}
+  .orbit::after{inset:14px;border-color:rgba(0,217,163,.18)}
+  .ring{position:absolute;inset:0;border-radius:50%;
+        border:2px solid transparent;border-top-color:var(--teal);
+        animation:spin 1.6s cubic-bezier(.6,.1,.4,.9) infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .core{position:absolute;inset:28px;border-radius:50%;
+        background:radial-gradient(circle at 50% 35%, #0c5, #064 70%);
+        display:flex;align-items:center;justify-content:center;
+        font-size:26px;color:#021;box-shadow:0 0 26px rgba(0,217,163,.5)}
+
+  .kicker{font-size:11px;font-weight:700;color:var(--teal);letter-spacing:.22em;
+          text-transform:uppercase;margin-bottom:8px}
+  h1{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
+  .sub{font-size:13px;color:var(--dim);margin-bottom:30px}
+
+  .status{display:inline-flex;align-items:center;gap:10px;font-size:13px;color:var(--text);
+          background:var(--teal-dim);border:1px solid rgba(0,217,163,.25);
+          padding:9px 16px;border-radius:999px;margin-bottom:18px}
+  .dots{display:inline-flex;gap:4px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);
+       animation:pulse 1.4s ease-in-out infinite}
+  .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+  @keyframes pulse{0%,80%,100%{opacity:.25;transform:scale(.7)}40%{opacity:1;transform:scale(1)}}
+
+  .hint{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:26px}
+  .hint b{color:var(--dim);font-weight:600}
+
+  .btn{font:inherit;font-size:12px;color:var(--dim);cursor:pointer;
+       background:transparent;border:1px solid var(--border);border-radius:10px;
+       padding:9px 18px;transition:all .15s}
+  .btn:hover{color:var(--text);border-color:rgba(0,217,163,.4);background:var(--teal-dim)}
+
+  .progress{height:3px;width:100%;background:rgba(255,255,255,.05);border-radius:2px;
+            overflow:hidden;margin:0 0 28px}
+  .progress i{display:block;height:100%;width:40%;border-radius:2px;
+       background:linear-gradient(90deg,transparent,var(--teal),transparent);
+       animation:slide 1.6s linear infinite}
+  @keyframes slide{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="orbit"><div class="ring"></div><div class="core">◉</div></div>
+    <div class="kicker">AeroDrag</div>
+    <h1>Coach Dashboard</h1>
+    <div class="sub">Sistema di analisi aerodinamica · CdA real-time</div>
+
+    <div class="progress"><i></i></div>
+
+    <div class="status">
+      Connessione al Raspberry Pi
+      <span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+    </div>
+
+    <div class="hint">
+      Assicurati che il cavo USB sia collegato al<br>
+      porto <b>USB dati</b> del Raspberry Pi (non al PWR).
+    </div>
+
+    <button class="btn">⚙&nbsp; Impostazioni</button>
+  </div>
+</body>
+</html>

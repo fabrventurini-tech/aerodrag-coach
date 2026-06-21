@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<!--
+  PROTOTIPO STATICO (proposta redesign) — AeroDrag Coach · schermata Impostazioni.
+  Autonomo: dati placeholder, nessun window.aerodrag. Apri in un browser.
+  Quando approvato, lo stile viene portato in aerodrag-coach/assets/settings.html.
+-->
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>AeroDrag Coach — Impostazioni (prototipo)</title>
+<style>
+  :root{
+    --bg:#07090f; --s1:#0f1420; --s2:#161d2e; --s3:#1e2840;
+    --teal:#00d9a3; --amber:#f5a623; --red:#ff4d6a;
+    --text:#dbe6f6; --dim:#8398bd; --muted:#46587c;
+    --border:rgba(120,160,220,.12);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);
+       font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+       display:flex;align-items:center;justify-content:center}
+  .mono{font-family:'SF Mono','Fira Code',ui-monospace,monospace}
+
+  .win{width:560px;background:var(--s1);border:1px solid var(--border);
+       border-radius:18px;overflow:hidden;
+       box-shadow:0 30px 90px rgba(0,0,0,.6)}
+
+  .titlebar{display:flex;align-items:center;gap:10px;padding:14px 18px;
+            background:linear-gradient(180deg,#121a2b,#0d1320);
+            border-bottom:1px solid var(--border)}
+  .titlebar .logo{color:var(--teal);font-weight:700;font-size:14px}
+  .titlebar .x{margin-left:auto;width:26px;height:26px;border-radius:8px;
+       border:1px solid var(--border);color:var(--dim);display:flex;
+       align-items:center;justify-content:center;cursor:pointer;font-size:13px}
+  .titlebar .x:hover{color:var(--red);border-color:rgba(255,77,106,.4)}
+
+  .body{padding:20px 18px 22px;display:flex;flex-direction:column;gap:18px}
+  .section{font-size:10px;color:var(--muted);letter-spacing:.16em;
+           text-transform:uppercase;margin:2px 2px 8px}
+
+  .card{background:var(--s2);border:1px solid var(--border);border-radius:14px;
+        padding:16px}
+  .card .lead{font-size:13px;font-weight:600;margin-bottom:3px}
+  .card .desc{font-size:11px;color:var(--dim);margin-bottom:12px}
+
+  .pathbox{display:flex;align-items:center;gap:10px;background:#0c111c;
+           border:1px solid var(--border);border-radius:10px;padding:10px 12px;
+           font-size:12px;color:var(--dim);margin-bottom:12px}
+  .pathbox .ico{color:var(--teal)}
+  .pathbox .p{color:var(--text)}
+
+  .row-btns{display:flex;gap:10px}
+  .btn{font:inherit;font-size:12px;font-weight:500;cursor:pointer;border-radius:10px;
+       padding:9px 16px;border:1px solid;transition:all .15s}
+  .btn-teal{color:var(--teal);border-color:rgba(0,217,163,.35);background:rgba(0,217,163,.08)}
+  .btn-teal:hover{background:rgba(0,217,163,.16)}
+  .btn-muted{color:var(--dim);border-color:var(--border);background:transparent}
+  .btn-muted:hover{color:var(--text)}
+
+  .conn .crow{display:flex;align-items:center;justify-content:space-between;
+       padding:10px 2px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px}
+  .conn .crow:last-child{border-bottom:none}
+  .conn .k{color:var(--dim)}
+  .conn .v{font-weight:600}
+  .badge{font-size:10px;padding:2px 9px;border-radius:999px;border:1px solid}
+  .ok{color:var(--teal);border-color:rgba(0,217,163,.3);background:rgba(0,217,163,.08)}
+
+  .foot{display:flex;align-items:center;justify-content:space-between;
+        font-size:11px;color:var(--muted);padding:2px 4px}
+  .foot .ver{color:var(--dim)}
+</style>
+</head>
+<body>
+  <div class="win">
+    <div class="titlebar">
+      <span class="logo">◉ AeroDrag</span>
+      <span style="color:var(--dim);font-size:12px">Impostazioni</span>
+      <span class="x">✕</span>
+    </div>
+
+    <div class="body">
+      <div>
+        <div class="section">Sessioni</div>
+        <div class="card">
+          <div class="lead">Cartella di salvataggio</div>
+          <div class="desc">Dove il PC Receiver salva le sessioni ricevute dal Pi.</div>
+          <div class="pathbox">
+            <span class="ico">📁</span>
+            <span class="p mono">~/Documents/AeroDrag/sessions</span>
+          </div>
+          <div class="row-btns">
+            <button class="btn btn-teal">Scegli cartella…</button>
+            <button class="btn btn-muted">Ripristina predefinita</button>
+            <button class="btn btn-muted">Apri cartella</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section">Connessione</div>
+        <div class="card conn">
+          <div class="crow"><span class="k">Pi server</span>
+            <span class="v mono" style="color:var(--teal)">192.168.7.1:8080</span></div>
+          <div class="crow"><span class="k">PC Receiver (locale)</span>
+            <span class="v mono">192.168.7.2:8081</span></div>
+          <div class="crow"><span class="k">Interfaccia USB</span>
+            <span class="v mono">192.168.7.x · RNDIS</span></div>
+          <div class="crow"><span class="k">Stato link</span>
+            <span class="badge ok">● connesso</span></div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <span>AeroDrag Coach</span>
+        <span class="ver mono">v1.0.0 · contract v0.2.3</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
