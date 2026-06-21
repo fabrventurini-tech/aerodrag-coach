@@ -3,36 +3,53 @@
 <head>
 <meta charset="UTF-8">
 <style>
+  /* Palette unificata AeroDrag (issue #12) — solo stile, nessun cambio di logica */
+  :root{
+    --accent:#00d9a3; --power:#f5a623; --speed:#4d9fff; --alert:#ff4d6a;
+    --positive:#22c55e; --text:#dbe6f6; --text-dim:#8398bd; --muted:#46587c;
+    --surface:#0f1420; --track:#1e2840; --bg:#07090f; --border:rgba(120,160,220,.12);
+  }
   *{margin:0;padding:0;box-sizing:border-box}
-  html,body{height:100%;background:transparent;font-family:'SF Mono','Fira Code',monospace;
+  html,body{height:100%;background:transparent;
+            font-family:'SF Mono','Fira Code',ui-monospace,monospace;
+            font-variant-numeric:tabular-nums;
             -webkit-user-select:none; -webkit-app-region:drag}
-  body{display:flex;align-items:center;justify-content:center}
+  body{display:flex;align-items:center;justify-content:center;color:var(--text)}
 
-  .card{background:#0f1420;border:1px solid rgba(0,200,150,.2);border-radius:18px;
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:18px;
         padding:40px 48px;text-align:center;width:420px;
-        box-shadow:0 24px 80px rgba(0,0,0,.7)}
+        box-shadow:0 24px 80px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.03)}
 
-  .logo{font-size:13px;font-weight:700;color:#00c896;letter-spacing:.12em;
+  .logo{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.12em;
         text-transform:uppercase;margin-bottom:6px}
-  .title{font-size:20px;font-weight:700;color:#dde8f5;margin-bottom:4px}
-  .sub{font-size:12px;color:#4a5a7a;margin-bottom:32px}
+  .title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:4px}
+  .sub{font-size:12px;color:var(--muted);margin-bottom:32px}
 
-  .spinner{width:44px;height:44px;border:3px solid rgba(0,200,150,.15);
-           border-top-color:#00c896;border-radius:50%;
+  .spinner{width:44px;height:44px;border:3px solid var(--track);
+           border-top-color:var(--accent);border-radius:50%;
            animation:spin 1s linear infinite;margin:0 auto 20px}
   @keyframes spin{to{transform:rotate(360deg)}}
 
-  .status{font-size:12px;color:#7a90b8;margin-bottom:8px}
-  .hint{font-size:11px;color:#2a3a5a;line-height:1.7}
+  .status{font-size:12px;color:var(--text-dim);margin-bottom:8px}
+  .hint{font-size:11px;color:var(--muted);line-height:1.7}
 
   .dot{display:inline-block;width:7px;height:7px;border-radius:50%;
-       background:#00c896;margin:0 2px;animation:pulse 1.4s ease-in-out infinite}
+       background:var(--accent);margin:0 2px;animation:pulse 1.4s ease-in-out infinite}
   .dot:nth-child(2){animation-delay:.2s}
   .dot:nth-child(3){animation-delay:.4s}
   @keyframes pulse{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
 
-  .found{display:none;color:#00c896;font-size:14px;font-weight:700;margin-top:8px}
+  .found{display:none;color:var(--accent);font-size:14px;font-weight:700;margin-top:8px}
   .found.show{display:block}
+
+  .settings-btn{margin-top:14px;display:inline-flex;align-items:center;gap:7px;
+                padding:7px 16px;border-radius:8px;border:1px solid var(--border);
+                background:transparent;color:var(--text-dim);cursor:pointer;
+                font-family:inherit;font-size:11px;-webkit-app-region:no-drag;
+                transition:all .15s}
+  .settings-btn:hover{color:var(--text);border-color:rgba(0,217,163,.4);
+                      background:rgba(0,217,163,.08)}
+  .settings-btn svg{width:13px;height:13px}
 </style>
 </head>
 <body>
@@ -53,13 +70,15 @@
     al porto USB del Raspberry Pi (non PWR)
   </div>
 
-  <div class="found" id="found">✓ Pi trovato — apertura dashboard...</div>
+  <div class="found" id="found">Pi trovato — apertura dashboard...</div>
 
-  <button onclick="window.aerodrag.openSettings()"
-    style="margin-top:8px;padding:6px 16px;border-radius:8px;
-           border:1px solid rgba(100,140,200,.2);background:transparent;
-           color:#4a5a7a;cursor:pointer;font-family:inherit;font-size:11px">
-    ⚙ Impostazioni
+  <button class="settings-btn" onclick="window.aerodrag.openSettings()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+    Impostazioni
   </button>
 </div>
 
@@ -67,7 +86,7 @@
   // Fix 15: use window.aerodrag exposed by preload.js — require() not available
   // with nodeIntegration:false + contextIsolation:true
   window.aerodrag.onPiFound(() => {
-    document.getElementById('spinner').style.borderTopColor = '#00c896';
+    document.getElementById('spinner').style.borderTopColor = '#00d9a3';
     document.getElementById('spinner').style.animationDuration = '.3s';
     document.getElementById('status').style.display = 'none';
     document.getElementById('hint').style.display = 'none';
