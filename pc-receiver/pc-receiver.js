@@ -51,6 +51,9 @@ const PI_PORT     = 8080;
 // per sviluppo/test (es. 127.0.0.1).
 const BIND_HOST   = process.env.AERODRAG_BIND_HOST || '192.168.7.2';
 const MAX_BODY    = 16 * 1024 * 1024;   // 16 MB: tetto di sicurezza su /receive (anti-DoS memoria)
+// §3/§5: id sessione e MAC device. Riusati per validare filename, sess.id e deviceId.
+const SESSION_ID_RE = /^session_\d+_[A-Fa-f0-9]+$/;
+const MAC_RE        = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
 
 const SESSIONS_DIR = process.env.AERODRAG_SESSIONS_DIR
   || path.join(os.homedir(), 'Documents', 'AeroDrag', 'sessions');
@@ -101,8 +104,14 @@ const server = http.createServer((req, res) => {
       if (!d || typeof d !== 'object'
           || typeof d.ts !== 'number'
           || typeof d.deviceId !== 'string'
+          || !MAC_RE.test(d.deviceId)
           || !Array.isArray(d.laps)) {
         res.writeHead(400); return res.end('Invalid schema');
+      }
+      // Coerenza §5: il deviceId interno deve combaciare col suffisso hex del filename
+      const fnHex = filename.match(/^session_\d+_([A-Fa-f0-9]+)\.json$/)[1].toLowerCase();
+      if (d.deviceId.replace(/:/g, '').toLowerCase() !== fnHex) {
+        res.writeHead(400); return res.end('deviceId/filename mismatch');
       }
       fs.writeFile(path.join(SESSIONS_DIR, filename), body, err => {
         if (err) { res.writeHead(500); return res.end('Error'); }
@@ -181,8 +190,14 @@ async function pullMissingSessions() {
     console.log(`[sync] ${missing.length} sessioni da scaricare dal Pi...`);
 
     for (const sess of missing) {
+      // §5: valida sess.id (ricevuto dal Pi) PRIMA di usarlo in path/fetch —
+      // previene path traversal e nomi fuori contratto da un Pi compromesso/buggato.
+      if (!SESSION_ID_RE.test(sess.id)) {
+        console.warn(`[sync] id sessione non valido, ignorato: ${sess.id}`);
+        continue;
+      }
       try {
-        const r    = await httpGet(`http://${PI_IP}:${PI_PORT}/api/sessions/${sess.id}`);
+        const r    = await httpGet(`http://${PI_IP}:${PI_PORT}/api/sessions/${encodeURIComponent(sess.id)}`);
         const json = await r.text();
         const filepath = path.join(SESSIONS_DIR, sess.id+'.json');
         fs.writeFileSync(filepath, json);
