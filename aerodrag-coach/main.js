@@ -355,11 +355,17 @@ function installRemoteCSP() {
       // 'unsafe-inline' resta finché la dashboard del Pi usa script/handler inline
       // (onclick/oninput + blocco <script> inline): la sua rimozione richiede il
       // de-inline lato Pi → coordinato nella seam #3 (pi↔coach).
-      `script-src 'self' ${PI_ORIGIN} 'unsafe-inline'; ` +
-      `style-src 'self' ${PI_ORIGIN} 'unsafe-inline'; ` +
+      // Whitelist delle dipendenze REALI della dashboard del Pi (server/dashboard.html):
+      //   Chart.js da cdnjs (senza → grafici rotti). NOTA: vendoring locale lato Pi
+      //   permetterebbe di togliere il CDN (proposto in seam #3).
+      `script-src 'self' ${PI_ORIGIN} 'unsafe-inline' https://cdnjs.cloudflare.com; ` +
+      // Google Fonts CSS (la dashboard usa Inter/JetBrains Mono via @import link).
+      `style-src 'self' ${PI_ORIGIN} 'unsafe-inline' https://fonts.googleapis.com; ` +
       `img-src 'self' ${PI_ORIGIN} data: blob:; ` +
-      `font-src 'self' ${PI_ORIGIN} data:; ` +
-      `connect-src 'self' ${PI_ORIGIN} ws://${PI_HOST}; ` +
+      `font-src 'self' ${PI_ORIGIN} data: https://fonts.gstatic.com; ` +
+      // connect-src: WS verso il Pi + receiver locale del PC (storico :8081, con
+      // fallback al Pi). Senza, la fetch dello storico PC sarebbe bloccata dalla CSP.
+      `connect-src 'self' ${PI_ORIGIN} ws://${PI_HOST} http://192.168.7.2:8081; ` +
       // CO-2 (audit v0.3.1): difesa in profondità.
       `object-src 'none'; ` +
       `base-uri 'self'; ` +
