@@ -3,7 +3,7 @@
  * App desktop senza cornice browser, doppio click per aprire, ESC per uscire.
  * Supporta selezione cartella di destinazione sessioni tramite dialog nativo.
  *
- * Contract: v0.3.0 — fonte di verità in aerodrag-firmware/docs/CONTRACT.md
+ * Contract: v0.3.1 — fonte di verità in aerodrag-firmware/docs/CONTRACT.md
  *   Il coach NON renderizza la dashboard: carica quella servita dal Pi
  *   (PI_URL → /dashboard, §4). La conformità di pctAero (0–100) è del Pi.
  *   Le sessioni (§5) sono ricevute/servite verbatim dal pc-receiver, che
@@ -351,11 +351,19 @@ function installRemoteCSP() {
     if (!details.url.startsWith(PI_ORIGIN)) return cb({ responseHeaders: details.responseHeaders });
     const csp =
       `default-src 'self' ${PI_ORIGIN} ws://${PI_HOST}; ` +
-      `script-src 'self' ${PI_ORIGIN} 'unsafe-inline' 'unsafe-eval'; ` +
+      // CO-1 (audit v0.3.1): rimosso 'unsafe-eval' (la dashboard non ne ha bisogno).
+      // 'unsafe-inline' resta finché la dashboard del Pi usa script/handler inline
+      // (onclick/oninput + blocco <script> inline): la sua rimozione richiede il
+      // de-inline lato Pi → coordinato nella seam #3 (pi↔coach).
+      `script-src 'self' ${PI_ORIGIN} 'unsafe-inline'; ` +
       `style-src 'self' ${PI_ORIGIN} 'unsafe-inline'; ` +
       `img-src 'self' ${PI_ORIGIN} data: blob:; ` +
       `font-src 'self' ${PI_ORIGIN} data:; ` +
-      `connect-src 'self' ${PI_ORIGIN} ws://${PI_HOST}`;
+      `connect-src 'self' ${PI_ORIGIN} ws://${PI_HOST}; ` +
+      // CO-2 (audit v0.3.1): difesa in profondità.
+      `object-src 'none'; ` +
+      `base-uri 'self'; ` +
+      `frame-ancestors 'none'`;
     const headers = { ...details.responseHeaders };
     // Rimuovi eventuali CSP in arrivo (case-insensitive) e imponi la nostra
     for (const k of Object.keys(headers)) {
