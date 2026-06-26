@@ -78,7 +78,7 @@ Sostituire i file placeholder con le icone reali:
 
 ## Conformità contratto
 
-Ancorato a **`aerodrag-firmware/docs/CONTRACT.md` v0.3.0** (fonte di verità unica).
+Ancorato a **`aerodrag-firmware/docs/CONTRACT.md` v0.3.3** (fonte di verità unica).
 
 - **Dashboard (§4):** non renderizzata dal coach — l'app carica quella servita
   dal Pi (`http://192.168.7.1:8080/dashboard`). L'interpretazione di `pctAero`

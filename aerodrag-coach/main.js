@@ -3,7 +3,7 @@
  * App desktop senza cornice browser, doppio click per aprire, ESC per uscire.
  * Supporta selezione cartella di destinazione sessioni tramite dialog nativo.
  *
- * Contract: v0.3.0 — fonte di verità in aerodrag-firmware/docs/CONTRACT.md
+ * Contract: v0.3.3 — fonte di verità in aerodrag-firmware/docs/CONTRACT.md
  *   Il coach NON renderizza la dashboard: carica quella servita dal Pi
  *   (PI_URL → /dashboard, §4). La conformità di pctAero (0–100) è del Pi.
  *   Le sessioni (§5) sono ricevute/servite verbatim dal pc-receiver, che
@@ -351,11 +351,24 @@ function installRemoteCSP() {
     if (!details.url.startsWith(PI_ORIGIN)) return cb({ responseHeaders: details.responseHeaders });
     const csp =
       `default-src 'self' ${PI_ORIGIN} ws://${PI_HOST}; ` +
-      `script-src 'self' ${PI_ORIGIN} 'unsafe-inline' 'unsafe-eval'; ` +
-      `style-src 'self' ${PI_ORIGIN} 'unsafe-inline'; ` +
+      // CO-1 (audit v0.3.3, issue #18): 'unsafe-inline' e 'unsafe-eval' rimossi da script-src.
+      // La dashboard del Pi è ora inline-free: <script src="/dashboard.js"> esterno,
+      // event-delegation (niente onclick/oninput inline). Chart.js 4.x UMD non usa eval.
+      // CDN: Chart.js da cdnjs (senza → grafici rotti).
+      `script-src 'self' ${PI_ORIGIN} https://cdnjs.cloudflare.com; ` +
+      // style-src: 'unsafe-inline' necessario per <style> block e attributi style="" inline
+      // presenti in dashboard.html (non coperte da CO-1 che era su script-src).
+      // Google Fonts CSS (la dashboard usa Inter/JetBrains Mono via @import link).
+      `style-src 'self' ${PI_ORIGIN} 'unsafe-inline' https://fonts.googleapis.com; ` +
       `img-src 'self' ${PI_ORIGIN} data: blob:; ` +
-      `font-src 'self' ${PI_ORIGIN} data:; ` +
-      `connect-src 'self' ${PI_ORIGIN} ws://${PI_HOST}`;
+      `font-src 'self' ${PI_ORIGIN} data: https://fonts.gstatic.com; ` +
+      // connect-src: WS verso il Pi + receiver locale del PC (storico :8081, con
+      // fallback al Pi). Senza, la fetch dello storico PC sarebbe bloccata dalla CSP.
+      `connect-src 'self' ${PI_ORIGIN} ws://${PI_HOST} http://192.168.7.2:8081; ` +
+      // CO-2 (audit v0.3.3): difesa in profondità.
+      `object-src 'none'; ` +
+      `base-uri 'self'; ` +
+      `frame-ancestors 'none'`;
     const headers = { ...details.responseHeaders };
     // Rimuovi eventuali CSP in arrivo (case-insensitive) e imponi la nostra
     for (const k of Object.keys(headers)) {
